@@ -9,3 +9,4 @@ coverage/
 build/
 *.log
 /.vscode/
+/workspaces/srm-new/.env.local
