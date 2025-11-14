@@ -1,0 +1,217 @@
+"use client"
+
+import React, { useEffect, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  useDraggable,
+  useDroppable
+} from '@dnd-kit/core'
+
+type Stage = { id: string; name: string; position: number; deals_count?: number }
+type Deal = { id: string; title: string; stage_id: string; value?: number; currency?: string }
+
+function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: deal.id
+  })
+
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        opacity: isDragging ? 0.5 : 1
+      }
+    : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      onClick={onClick}
+      className="bg-slate-700 hover:bg-slate-600 rounded p-3 cursor-grab active:cursor-grabbing transition-colors"
+    >
+      <div className="font-medium text-white mb-1">{deal.title}</div>
+      {deal.value && (
+        <div className="text-sm text-slate-300">
+          {deal.value.toLocaleString()} {deal.currency || 'RUB'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DroppableColumn({ stage, deals, onDealClick }: { stage: Stage; deals: Deal[]; onDealClick: (id: string) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id })
+
+  return (
+    <div className="w-72 card flex-shrink-0">
+      <div className="font-semibold mb-3 text-white flex justify-between">
+        <span>{stage.name}</span>
+        <span className="bg-slate-600 px-2 py-0.5 rounded text-xs">{deals.length}</span>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={`space-y-2 min-h-[200px] rounded p-2 transition-colors ${
+          isOver ? 'bg-slate-700/50' : 'bg-slate-800/30'
+        }`}
+      >
+        {deals.length === 0 && (
+          <div className="text-slate-500 text-sm text-center py-4">Перетащите сюда</div>
+        )}
+        {deals.map((d) => (
+          <DraggableCard key={d.id} deal={d} onClick={() => onDealClick(d.id)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: string; onDealClick?: (dealId: string) => void }) {
+  const [stages, setStages] = useState<Stage[]>([])
+  const [dealsByStage, setDealsByStage] = useState<Record<string, Deal[]>>({})
+  const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }
+    })
+  )
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`/api/pipelines`)
+        if (!res.ok) return
+        const data = await res.json()
+        const p = data.find((x: any) => x.id === pipelineId)
+        if (!p) return
+        setStages(p.stages || [])
+
+        const r2 = await fetch(`/api/deals?pipelineId=${pipelineId}`)
+        if (!r2.ok) return
+        const deals = await r2.json()
+        const grouped: Record<string, Deal[]> = {}
+        for (const stage of p.stages || []) {
+          grouped[stage.id] = []
+        }
+        for (const d of deals) {
+          const sid = d.stage_id
+          if (sid && grouped[sid]) {
+            grouped[sid].push(d)
+          }
+        }
+        setDealsByStage(grouped)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [pipelineId])
+
+  async function onDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    setActiveDeal(null)
+    
+    if (!over || active.id === over.id) return
+    
+    const dealId = active.id as string
+    const toStageId = over.id as string
+    
+    // Find original stage
+    let fromStageId = ''
+    let deal: Deal | undefined
+    for (const [stageId, deals] of Object.entries(dealsByStage)) {
+      const found = deals.find(d => d.id === dealId)
+      if (found) {
+        fromStageId = stageId
+        deal = found
+        break
+      }
+    }
+    
+    if (!deal || fromStageId === toStageId) return
+
+    // Optimistic update
+    setDealsByStage((prev) => {
+      const copy: Record<string, Deal[]> = {}
+      for (const k of Object.keys(prev)) {
+        copy[k] = [...prev[k]]
+      }
+      copy[fromStageId] = copy[fromStageId].filter((d) => d.id !== dealId)
+      copy[toStageId] = [...copy[toStageId], { ...deal, stage_id: toStageId }]
+      return copy
+    })
+
+    // API call
+    try {
+      const res = await fetch('/api/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId, toStageId })
+      })
+      
+      if (!res.ok) {
+        // Rollback on error
+        setDealsByStage((prev) => {
+          const copy: Record<string, Deal[]> = {}
+          for (const k of Object.keys(prev)) {
+            copy[k] = [...prev[k]]
+          }
+          copy[toStageId] = copy[toStageId].filter((d) => d.id !== dealId)
+          copy[fromStageId] = [...copy[fromStageId], deal!]
+          return copy
+        })
+      }
+    } catch (e) {
+      console.error('Failed to update deal:', e)
+    }
+  }
+
+  function handleDragStart(event: any) {
+    const dealId = event.active.id as string
+    for (const deals of Object.values(dealsByStage)) {
+      const found = deals.find(d => d.id === dealId)
+      if (found) {
+        setActiveDeal(found)
+        break
+      }
+    }
+  }
+
+  if (loading) return <div className="text-slate-400">Загрузка...</div>
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {stages.map((s) => (
+          <DroppableColumn
+            key={s.id}
+            stage={s}
+            deals={dealsByStage[s.id] || []}
+            onDealClick={(id) => onDealClick?.(id)}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {activeDeal && (
+          <div className="bg-slate-600 rounded p-3 shadow-lg opacity-90">
+            <div className="font-medium text-white">{activeDeal.title}</div>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  )
+}
