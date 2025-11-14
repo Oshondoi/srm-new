@@ -29,8 +29,8 @@ export default function ContactsPage() {
       ])
       const contactsData = await contactsRes.json()
       const companiesData = await companiesRes.json()
-      setContacts(contactsData)
-      setCompanies(companiesData)
+      setContacts(Array.isArray(contactsData) ? contactsData : [])
+      setCompanies(Array.isArray(companiesData) ? companiesData : [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -122,10 +122,10 @@ export default function ContactsPage() {
       </div>
 
       <div className="space-y-2">
-        {contacts.length === 0 && (
+        {(!contacts || contacts.length === 0) && (
           <div className="text-slate-400">Контакты не найдены</div>
         )}
-        {contacts.map((c: any) => (
+        {(contacts || []).map((c: any) => (
           <div key={c.id} className="card flex justify-between items-center">
             <div>
               <div className="font-semibold text-white">
@@ -229,7 +229,7 @@ export default function ContactsPage() {
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
                 >
                   <option value="">Не выбрано</option>
-                  {companies.map((comp) => (
+                  {(companies || []).map((comp) => (
                     <option key={comp.id} value={comp.id}>
                       {comp.name}
                     </option>

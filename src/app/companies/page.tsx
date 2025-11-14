@@ -23,7 +23,7 @@ export default function CompaniesPage() {
     try {
       const res = await fetch('/api/companies')
       const data = await res.json()
-      setCompanies(data)
+      setCompanies(Array.isArray(data) ? data : [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -111,10 +111,10 @@ export default function CompaniesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {companies.length === 0 && (
+        {(!companies || companies.length === 0) && (
           <div className="text-slate-400 col-span-full">Компании не найдены</div>
         )}
-        {companies.map((c: any) => (
+        {(companies || []).map((c: any) => (
           <div key={c.id} className="card">
             <div className="flex justify-between items-start mb-2">
               <div className="font-bold text-white text-lg">{c.name}</div>

@@ -44,7 +44,7 @@ export default function Page() {
         <div className="card">
           <div className="text-slate-400 text-sm mb-1">Сумма в воронке</div>
           <div className="text-3xl font-bold text-white">
-            {stats.totalValue.toLocaleString()} ₽
+            {(stats.totalValue || 0).toLocaleString()} ₽
           </div>
         </div>
 
@@ -69,10 +69,10 @@ export default function Page() {
             </Link>
           </div>
           <div className="space-y-2">
-            {stats.recentDeals.length === 0 && (
+            {(!stats.recentDeals || stats.recentDeals.length === 0) && (
               <div className="text-slate-400 text-center py-4">Сделок нет</div>
             )}
-            {stats.recentDeals.map((deal: any) => (
+            {stats.recentDeals?.map((deal: any) => (
               <div key={deal.id} className="bg-slate-700/50 rounded p-3 hover:bg-slate-700 transition-colors">
                 <div className="flex justify-between items-start mb-1">
                   <div className="font-medium text-white">{deal.title}</div>
@@ -98,7 +98,7 @@ export default function Page() {
             </Link>
           </div>
 
-          {stats.tasks.overdue > 0 && (
+          {stats.tasks?.overdue > 0 && (
             <div className="bg-red-900/30 border border-red-800 rounded p-3 mb-3">
               <div className="text-red-400 font-semibold">
                 ⚠️ Просроченных: {stats.tasks.overdue}
@@ -106,7 +106,7 @@ export default function Page() {
             </div>
           )}
 
-          {stats.tasks.today > 0 && (
+          {stats.tasks?.today > 0 && (
             <div className="bg-yellow-900/30 border border-yellow-800 rounded p-3 mb-3">
               <div className="text-yellow-400 font-semibold">
                 📅 На сегодня: {stats.tasks.today}
@@ -143,7 +143,7 @@ export default function Page() {
         <div className="card">
           <h2 className="text-xl font-bold text-white mb-4">Сделки по этапам</h2>
           <div className="space-y-3">
-            {stats.dealsByStage.map((stage: any) => (
+            {stats.dealsByStage?.map((stage: any) => (
               <div key={stage.stage_name}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-slate-300">{stage.stage_name}</span>

@@ -35,16 +35,17 @@ export default function LeadsPage() {
         const companiesData = await companiesRes.json()
         const contactsData = await contactsRes.json()
         
-        setPipelines(pipelinesData)
-        setCompanies(companiesData)
-        setContacts(contactsData)
+        setPipelines(Array.isArray(pipelinesData) ? pipelinesData : [])
+        setCompanies(Array.isArray(companiesData) ? companiesData : [])
+        setContacts(Array.isArray(contactsData) ? contactsData : [])
         
-        if (pipelinesData.length > 0) {
-          setSelectedPipeline(pipelinesData[0].id)
+        const pipelines = Array.isArray(pipelinesData) ? pipelinesData : []
+        if (pipelines.length > 0) {
+          setSelectedPipeline(pipelines[0].id)
           setCreateForm(prev => ({ 
             ...prev, 
-            pipeline_id: pipelinesData[0].id,
-            stage_id: pipelinesData[0].stages?.[0]?.id || ''
+            pipeline_id: pipelines[0].id,
+            stage_id: pipelines[0].stages?.[0]?.id || ''
           }))
         }
       } finally {
@@ -196,7 +197,7 @@ export default function LeadsPage() {
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
                 >
                   <option value="">Не выбрано</option>
-                  {companies.map(c => (
+                  {(companies || []).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -210,7 +211,7 @@ export default function LeadsPage() {
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
                 >
                   <option value="">Не выбрано</option>
-                  {contacts.map(c => (
+                  {(contacts || []).map(c => (
                     <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                   ))}
                 </select>
@@ -224,7 +225,7 @@ export default function LeadsPage() {
                   onChange={e => setCreateForm(prev => ({ ...prev, pipeline_id: e.target.value }))}
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
                 >
-                  {pipelines.map(p => (
+                  {(pipelines || []).map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -238,7 +239,7 @@ export default function LeadsPage() {
                   onChange={e => setCreateForm(prev => ({ ...prev, stage_id: e.target.value }))}
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-blue-500 outline-none"
                 >
-                  {stages.map(s => (
+                  {(stages || []).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
