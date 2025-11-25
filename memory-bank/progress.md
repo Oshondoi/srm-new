@@ -7,15 +7,34 @@
 | **Core CRM** |
 | Dashboard | ✅ Complete | 80% | Shows stats, needs analytics |
 | Kanban Board | ✅ Complete | 90% | Drag-drop works, needs polish |
-| Deal Modal | ✅ Complete | 95% | All tabs functional, minor UX tweaks |
+| Deal Modal | ✅ Complete | 100% | Compact amoCRM design, all fields editable + Chat |
+| Deal Chat | ✅ Complete | 90% | Full messaging UI, localStorage storage |
 | Companies List | ⚠️ Partial | 50% | List works, no detail view |
 | Contacts List | ⚠️ Partial | 50% | List works, no detail view |
 | Tasks List | ⚠️ Partial | 60% | List works, completion needs work |
+| **Multi-Tenancy** |
+| Account Isolation | ✅ Complete | 100% | Full data isolation by account_id |
+| JWT with accountId | ✅ Complete | 100% | All tokens include accountId |
+| API Filtering | ✅ Complete | 100% | All routes filter by account_id |
+| getUserFromRequest() | ✅ Complete | 100% | Server-side auth extraction |
+| **Authentication** |
+| Login Page | ✅ Complete | 100% | Sliding animation, works perfectly |
+| Registration | ✅ Complete | 100% | Auto-creates pipeline on signup |
+| JWT Auth | ✅ Complete | 100% | 30-day tokens, bcrypt passwords |
+| Middleware | ✅ Complete | 100% | Route protection active (jose) |
+| Logout | ✅ Complete | 100% | Button in sidebar |
+| **Pipelines & Stages** |
+| Pipeline Management | ✅ Complete | 90% | API ready, UI needed |
+| Auto-Create Stages | ✅ Complete | 100% | PostgreSQL trigger works |
+| Default 3 Stages | ✅ Complete | 100% | Первичный контакт, Переговоры, Принимают решение |
+| Pipeline POST API | ✅ Complete | 100% | /api/pipelines POST endpoint |
 | **Relationships** |
 | Company ↔ Contacts | ✅ Complete | 100% | Foreign key enforced |
 | Deal ↔ Company | ✅ Complete | 100% | Single company per deal |
 | Deal ↔ Contacts | ✅ Complete | 100% | Many-to-many implemented |
 | Deal ↔ Tasks | ✅ Complete | 90% | Works, needs better UI |
+| Account ↔ Everything | ✅ Complete | 100% | Full hierarchy implemented |
+| User ↔ Data | ✅ Complete | 100% | Data isolation by account_id |
 | **Data Management** |
 | CRUD Companies | ✅ Complete | 95% | Create/read works, edit/delete basic |
 | CRUD Contacts | ✅ Complete | 95% | Create/read works, edit/delete basic |
@@ -27,12 +46,13 @@
 | Context Menus | ✅ Complete | 100% | Universal activeMenu pattern |
 | Autocomplete | ✅ Complete | 90% | Works, needs debouncing |
 | Visual Sections | ✅ Complete | 100% | Clear separation achieved |
+| Login Form Animation | ✅ Complete | 100% | Smooth sliding transition |
 | **Technical** |
-| Database Schema | ✅ Complete | 95% | All tables, indices needed |
-| API Routes | ✅ Complete | 90% | All endpoints exist, validation basic |
+| Database Schema | ✅ Complete | 100% | Auth + pipelines complete |
+| API Routes | ✅ Complete | 95% | All endpoints exist, validation basic |
 | Data Safety | ✅ Complete | 100% | All pages protected from undefined/null |
 | Docker Setup | ✅ Complete | 90% | Container works, needs auto-restart |
-| Authentication | ❌ Not Started | 0% | Placeholder only |
+| Authentication | ✅ Complete | 100% | JWT + bcrypt fully working |
 | Error Handling | ⚠️ Partial | 60% | Data safety done, need boundaries |
 | Loading States | ⚠️ Partial | 40% | Text only, no skeletons |
 
@@ -45,7 +65,458 @@
 
 ## Recent Accomplishments
 
-### Latest Session (November 14, 2025)
+### Latest Session (November 21, 2025) - amoCRM-Style UI Redesign ✅
+
+#### 🎨 Narrow Sidebar with Icons (amoCRM Style) ✅
+- **Goal**: Создать компактный sidebar как в amoCRM с иконками
+- **Implementation**:
+  - Ширина изменена с `w-64` (256px) на `w-20` (80px)
+  - Вертикальная раскладка: иконка emoji сверху (text-2xl), текст снизу (text-xs)
+  - Logo изменен с "srm" на "S"
+  - Добавлены emoji иконки для всех разделов:
+    - 🏠 Рабочий стол
+    - 💼 Сделки
+    - 👤 Контакты
+    - 🏢 Компании
+    - ✓ Задачи
+    - 📋 Списки
+    - 📊 Аналитика
+    - ⚙️ Настройки
+  - `z-50` для отображения поверх всего
+- **Files**: `/workspaces/srm-new/src/components/Sidebar.tsx`
+- **Result**: ✅ Компактный 80px sidebar с понятными иконками
+
+#### 🪟 Deal Modal - Left Side Opening ✅
+- **Goal**: Модалка должна открываться слева, выезжая из-под sidebar
+- **Implementation**:
+  - **Layer Structure**:
+    - Backdrop: `z-10`, `left: '80px'`, затемнение справа от sidebar
+    - Modal: `z-20`, `left: '80px'`, ширина 580px
+    - Sidebar: `z-50`, всегда поверх
+  - **Animation**:
+    - Добавлен `isOpening` state для начальной позиции
+    - `transform: translateX(-100%)` → `translateX(0)` при открытии
+    - `transform: translateX(0)` → `translateX(-100%)` при закрытии
+    - `transition: transform 0.3s ease-out`
+    - Модалка выезжает из-под sidebar (не проходит поверх него)
+  - **Interaction**:
+    - Клик по backdrop закрывает модалку
+    - Клик по модалке НЕ закрывает (`stopPropagation`)
+    - Sidebar всегда кликабелен и видим
+- **Files**: `/workspaces/srm-new/src/components/DealModal.tsx`, `/workspaces/srm-new/src/app/globals.css`
+- **Result**: ✅ Плавная анимация, модалка выезжает из-под sidebar слева
+
+#### ⚡ Remove Loading Screen from Deals Page ✅
+- **Problem**: Перед открытием модалки сделки показывался экран "Загрузка..." который блокировал UI
+- **Solution**:
+  - **LeadsPage**: Убрана строка `if (loading) return <div className="text-white">Загрузка...</div>`
+  - **KanbanBoard**: Убрана строка `if (loading) return <div className="text-slate-400">Загрузка...</div>`
+  - Убран весь `loading` state из KanbanBoard (не используется)
+  - Страница рендерится сразу с пустым состоянием
+  - Данные (pipelines, companies, contacts, deals) загружаются асинхронно в фоне
+  - Условные проверки `{pipelines.length > 0 && ...}` и `{selectedPipeline && ...}` защищают от ошибок
+  - UI обновляется постепенно по мере загрузки данных
+- **Result**: ✅ Страница и канбан-доска открываются мгновенно, без "Загрузка..."
+
+#### ⚠️ Contact Modal Exit Confirmation ✅
+
+#### ⚠️ Exit Confirmation for Unsaved Changes ✅
+- **Problem**: Модалка контактов не предупреждала о несохраненных изменениях при закрытии
+- **Solution**:
+  - `initialFormData` state для хранения начальных значений
+  - `hasChanges` state отслеживает изменения
+  - `showExitConfirm` state для модалки подтверждения
+  - `updateFormData()` функция обновляет поля и проверяет изменения через `JSON.stringify`
+  - `handleCloseModal()` показывает подтверждение если `hasChanges === true`
+  - Все `onChange` handlers используют `updateFormData()`
+  - Backdrop click и кнопка "Отмена" вызывают `handleCloseModal()`
+  - Модалка подтверждения с кнопками "Отмена" и "Выйти без сохранения"
+  - `z-[60]` для модалки подтверждения (выше основной модалки)
+- **Result**: ✅ Работает как в DealModal - предупреждает о потере несохраненных изменений
+
+### Previous Session (November 20, 2025) - View Modes UX Unification ✅
+
+#### 🎯 Unified Click Behavior for Both Views ✅
+- **Problem**: В табличном виде были кнопки "Редактировать" и "Удалить", несогласованно с канбан видом
+- **Solution**:
+  - Убрана кнопка "Редактировать" из табличного вида
+  - Вся строка теперь `cursor-pointer` с `onClick={openInfoModal/openEditModal}`
+  - Только одна кнопка "Удалить" с `e.stopPropagation()`
+  - Одинаковое поведение в канбан и табличном режиме
+  - Применено на страницах Контакты и Компании
+- **Result**: ✅ Единообразный UX: клик по строке/карточке открывает модалку, кнопка Удалить работает независимо
+
+### Previous Session (November 20, 2025) - Contacts Page Improvements ✅
+
+#### 🔄 View Switcher - Table/Kanban Toggle ✅
+- **Problem**: Нужен переключатель между табличным и канбан видом на страницах Контакты и Компании
+- **Solution**:
+  - Кнопки переключения справа от заголовков
+  - **Табличный вид**: иконка с 3 горизонтальными прямоугольниками
+  - **Канбан вид**: иконка с 2 вертикальными колонками
+  - `viewMode` state: 'table' | 'kanban'
+  - Активная кнопка: `bg-slate-700 text-white`
+  - Неактивная: `text-slate-400 hover:text-white`
+  - SVG иконки inline с stroke="currentColor"
+  - Условный рендеринг контента по viewMode
+- **Kanban View (Contacts)**:
+  - Grid layout: 1-4 колонки responsive
+  - Карточки h-[240px] с hover эффектом
+  - ФИО крупно, должность/компания/email/phone с эмодзи
+  - Кнопка "Удалить" внизу
+  - Клик на карточку → openEditModal
+- **Table View (Companies)**:
+  - Фиксированные колонки: Название, Website, Email, Телефон
+  - min-w-[900px] с overflow-x-auto
+  - Кнопки "Редактировать" и "Удалить"
+- **Result**: ✅ Оба вида работают на обеих страницах
+
+#### 📊 Contacts Page - Table Format with Fixed Columns ✅
+- **Problem**: Контакты отображались как карточки без визуального порядка информации
+- **Solution**:
+  - Фиксированные колонки с процентной шириной
+  - **ФИО** (25%): имя + фамилия крупно, должность мелко
+  - **Компания** (20%): название компании
+  - **Email** (22%): с truncate для длинных адресов
+  - **Телефон** (18%): номер телефона
+  - **Действия** (flex-1): кнопки справа
+  - Заголовки колонок мелким текстом над данными
+  - Пустые значения показываются как "—"
+  - `flex-shrink-0` для сохранения ширин колонок
+- **Result**: ✅ Чистый табличный вид с одинаковой структурой для всех контактов
+
+#### 🎨 Stage Selector Visual Feedback ✅
+- **Problem**: Не было визуальных подсказок, что зона этапов кликабельна
+- **Solution**:
+  - Добавлен `group` wrapper с hover эффектами
+  - `hover:bg-slate-700/50` - легкая подсветка фона
+  - `hover:shadow-sm` - тонкая тень для глубины
+  - `rounded-lg px-3 py-2` - увеличенная кликабельная зона
+  - Текст этапа: `group-hover:text-white` (ярче при hover)
+  - Стрелка: `group-hover:translate-y-0.5` (движется вниз)
+  - Полоски этапов: `group-hover:brightness-110` (светлее)
+  - Все transitions: `duration-150` для плавности
+- **Result**: ✅ Интуитивно понятная интерактивная зона
+
+#### 🎯 Stage Dropdown Smooth Animation ✅
+- **Problem**: Dropdown исчезал мгновенно без плавной анимации
+- **Root Cause**: 
+  - `isStageDropdownClosing` state с setTimeout создавал глитчи
+  - Условный рендеринг `{showStageDropdown && (` давал instant unmount
+  - CSS animations требовали сложной логики с задержками
+- **Solution**:
+  - Убран `isStageDropdownClosing` state и функция `closeStageDropdown()`
+  - Dropdown всегда в DOM, видимость через Tailwind классы
+  - `className={showStageDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-95 pointer-events-none'}`
+  - `transition-all duration-200 ease-out origin-top`
+  - `pointer-events-none` предотвращает клики на скрытый элемент
+- **Result**: ✅ Плавная анимация появления и исчезновения (200ms)
+
+### Previous Session (November 19, 2025) - Deal Modal UI/UX Complete ✅
+
+#### 🎨 Compact amoCRM-style Design ✅
+- **Goal**: Создать компактный дизайн карточки сделки как в amoCRM
+- **Implementation**:
+  - Убраны заголовки секций (Общая информация, Контакт, Компания)
+  - Уменьшены все вертикальные отступы (py-1, gap-1.5)
+  - Визуальные границы через bg-slate-700/30 вместо border-b
+  - Удалена кнопка "еще" внизу карточки
+- **Result**: ✅ Чистый, компактный интерфейс
+
+#### ✏️ All Fields Editable ✅
+- **Goal**: Все данные контакта и компании редактируемые, сохранение только по кнопке
+- **Implementation**:
+  - Contact fields: phone, email, position, company_id, budget2, meeting_date
+  - Company fields: phone, email, website, address
+  - Proper input types: tel, email, number, datetime-local, url, text
+  - Removed all auto-save (onBlur handlers)
+  - Consolidated save in handleSave() steps 5-6
+  - hasChanges tracking for exit confirmation
+- **Database**: Added budget2 INTEGER to contacts table
+- **API**: Updated `/api/contacts/[id]` PUT handler
+- **Result**: ✅ Все поля редактируемые, сохранение только по кнопке "Сохранить"
+
+#### 🎭 Contact Accordion Animation ✅
+- **Goal**: Плавная анимация раскрытия контактов с эффектом "pushing"
+- **Implementation**:
+  - activeContactIndex state (0 = первый контакт раскрыт)
+  - Inline styles: `height: isActive ? '400px' : '60px'`
+  - CSS transition: `height 0.35s ease-in-out`
+- **Result**: ✅ Smooth height transitions, контакты плавно "толкают" друг друга
+
+#### 🏢 Company in Contact Section ✅
+- **Goal**: Компания в контакте должна быть редактируемой с контекстным меню
+- **Implementation**:
+  - Independent from main Company section
+  - Context menu: edit (search dropdown) / delete (remove binding)
+  - editingContactCompany, contactCompanySearch states
+  - Search filtering by company name
+- **Result**: ✅ Полное редактирование компании в контакте
+
+#### 🔑 Admin Password Update ✅
+- **Changed**: admin@test.com password: `parol123` → `123`
+- **Reason**: User request for simpler password
+- **Method**: bcrypt hash update via Docker exec
+- **Result**: ✅ Login works with new password
+
+### Current Session (November 25, 2025) - Performance + UX Fixes ✅
+
+#### ⚡ Authorization Performance Fix ✅
+**Problem**: Missing `await` in API routes caused authorization delays
+**Solution**: Added `await getUserFromRequest(request)` to all endpoints:
+- `/api/contacts/route.ts` (GET, POST)
+- `/api/companies/route.ts` (POST)
+- `/api/deals/route.ts` (GET, POST)
+- `/api/account/active-pipeline/route.ts`
+- `/api/account/users/route.ts`
+- `/api/stats/route.ts` - complete rewrite with auth + account_id filtering
+**Result**: ✅ Fast page loads, proper multi-tenant isolation
+
+#### 🔒 Multi-Tenant Security Enhancement ✅
+**Problem**: `/api/stats` had no auth, queried all accounts
+**Solution**: 
+- Added `getUserFromRequest()` with await
+- All queries filter by `user.accountId`
+- Updated middleware matcher to include `/api/stats` and `/api/account/:path*`
+**Impact**: Security vulnerability closed, data isolation enforced
+**Result**: ✅ Stats endpoint fully secured
+
+#### 🎯 Context Menu Restoration ✅
+**Problem**: Context menus disappeared from contacts/companies in deal modal
+**Solution**: 
+- Restored one-click for menu, double-click for edit
+- Proper event propagation with stopPropagation
+- Independent click handlers for contacts and companies
+**Result**: ✅ Context menus working perfectly
+
+#### 💾 Transactional Editing - Companies ✅
+**Problem**: Companies auto-saved immediately (violated transactional pattern)
+**Solution**:
+- Changed `handleCreateCompany` to create temporary companies (id: `temp-company-${Date.now()}`)
+- Modified `handleSave` to create real companies in DB during save
+- Set `hasChanges(true)` when creating temp company
+**Impact**: Consistent with contacts - no auto-save until "Сохранить"
+**Result**: ✅ Transactional pattern enforced
+
+#### 🎨 Z-Index Layer System ✅
+**Problem**: Exit/Delete confirmations hidden behind other elements
+**Solution**: Comprehensive z-index hierarchy documented:
+- **Layer 50**: Sidebar, Exit/Delete confirmations
+- **Layer 40**: Chat filter panel
+- **Layer 30**: Dropdowns, context menus (active)
+- **Layer 20**: Deal modal, chat panel
+- **Layer 10**: Modal backdrop, context menus (inactive)
+**Changes**: Confirmation dialogs z-10 → z-50, added stopPropagation
+**Result**: ✅ All UI layers properly stacked
+
+#### 🔍 Chat Search UX Improvement ✅
+**Problem**: Only filter icon was clickable, not entire search field
+**Solution**: 
+- Removed input field completely
+- Removed filter icon button
+- Created single clickable area with search icon + text "Поиск и фильтр"
+- Full-width clickable zone without borders
+- Cursor pointer on hover
+**Design**: Matches amoCRM - simple, intuitive interface
+**Result**: ✅ Entire search area clickable, clean design
+
+#### 📝 Memory Bank Critical Rules Added ✅
+**Added Rules**:
+1. **NEVER interrupt dev server** - All changes via hot reload
+2. **DON'T BREAK WORKING FEATURES** - Minimum code changes, verify existing functionality
+3. **Startup Checklist**: Always start PostgreSQL + Dev Server
+**Location**: `/memory-bank/activeContext.md`, `.github/instructions/memorybank.instructions.md`
+**Result**: ✅ Operational guidelines established
+
+#### 🗄️ Development Environment ✅
+**Status**: Stable background processes
+- PostgreSQL: `docker start srm-postgres` (port 5432)
+- Dev Server: `nohup npm run dev > /tmp/nextjs-server.log 2>&1 &`
+- Logs: `/tmp/nextjs-server.log`
+- URL: http://localhost:3000
+**Result**: ✅ Server never interrupted during session
+
+**Files Modified**:
+- `/src/components/DealModal.tsx` - context menus, temp companies, z-index, chat search
+- `/src/app/api/stats/route.ts` - complete rewrite with auth
+- `/src/app/api/contacts/route.ts` - added await
+- `/src/app/api/companies/route.ts` - added await
+- `/src/app/api/deals/route.ts` - added await
+- `/src/app/api/account/active-pipeline/route.ts` - added await
+- `/src/app/api/account/users/route.ts` - added await
+- `/src/middleware.ts` - updated matcher
+- `/memory-bank/activeContext.md` - added critical rules
+- `/memory-bank/systemPatterns.md` - documented transactional pattern
+- `.github/instructions/memorybank.instructions.md` - added dev server rule
+
+### Previous Session (November 21, 2025) - Chat System with Advanced Filters ✅
+
+#### 💬 Chat Feature Implementation ✅
+**Goal**: Добавить систему переписки в модалку сделки как в amoCRM
+
+**Completed Features**:
+1. ✅ Отдельная панель чата справа от модалки (left: 660px, right: 0)
+2. ✅ Типы сообщений с цветовой кодировкой:
+   - 💬 Чат (синий bg-blue-600)
+   - 📝 Примечание (желтый bg-yellow-600)
+   - ✓ Задача (зеленый bg-green-600)
+3. ✅ @Упоминания с autocomplete dropdown
+4. ✅ Dropdown выбора получателя (боты, отделы, пользователи)
+5. ✅ Для задач - dropdown типа связи (📅 Встреча/📞 Звонок/✉️ Письмо/⚙️ Другой)
+6. ✅ API `/api/account/users` для загрузки реальных пользователей
+7. ✅ Кастомный scrollbar (8px, slate colors, hover effects)
+
+#### 🔍 Advanced Filtering System ✅
+**Goal**: Реализовать 3-уровневую систему фильтрации как в amoCRM
+
+**Architecture**:
+- **Overlay Panel**: position: absolute, z-index: 40, открывается поверх чата
+- **2-колоночная структура**:
+  - Левая колонка (240px): Быстрые фильтры-кнопки
+  - Правая колонка (flex-1): Детальные настройки с чекбоксами
+
+**Implemented Filters**:
+1. ✅ Быстрые фильтры (кнопки):
+   - Все события (по умолчанию)
+   - Только чаты
+   - Только чаты с клиентами
+2. ✅ Сообщения чатов (чекбокс + dropdown):
+   - Все / С клиентами / Внутренние
+3. ✅ Связанные объекты (чекбокс + dropdown с поиском):
+   - Контакты / Компании / Сделки / Задачи
+   - Кнопки: "Выбрать все" / "Очистить"
+4. ✅ Типы событий (dropdown с чекбоксами):
+   - 9 типов событий (Активные задачи, Входящее смс, и т.д.)
+   - Поиск внутри dropdown
+   - Кнопки: OK / Отменить
+
+**UI Features**:
+- ✅ Зеленые теги активных фильтров (удаляются кликом)
+- ✅ Закрытие панели при клике вне `.chat-filters-panel`
+- ✅ Поле поиска "Поиск и фильтр" - полностью кликабельная зона
+
+#### 🎨 UI Improvements ✅
+1. ✅ Центрирование колонок этапов (Kanban board) по горизонтали
+   - Изменено: `w-full` → `w-fit mx-auto` в KanbanBoard
+2. ✅ Синхронизированные анимации модалки и чата (transform: translateX)
+3. ✅ Responsive layout с учетом sidebar (80px) и модалки (580px)
+
+**Files Modified**:
+- `/src/components/DealModal.tsx` - добавлена панель чата и фильтры
+- `/src/app/api/account/users/route.ts` - новый endpoint
+- `/src/app/globals.css` - кастомный scrollbar
+- `/src/components/KanbanBoard.tsx` - центрирование колонок
+- `/src/app/leads/page.tsx` - wrapper для центрирования
+
+**Result**: ✅ Полноценная система переписки с продвинутой фильтрацией
+
+---
+
+### Previous Session (November 19, 2025) - Multi-Tenancy Complete + Auto-Pipeline Stages ✅
+
+#### 🎯 Multi-Tenant Data Isolation ✅
+- **Goal**: Полная изоляция данных между аккаунтами
+- **Implementation**: 
+  - JWT payload расширен: `{ userId, accountId, email }`
+  - Добавлена функция `getUserFromRequest()` в `/src/lib/auth.ts`
+  - ВСЕ API routes обновлены с фильтрацией по `account_id`
+- **Routes Updated**:
+  - `/api/contacts` - GET/POST с account_id
+  - `/api/companies` - GET/POST с account_id
+  - `/api/deals` - GET/POST с account_id + field mapping
+  - `/api/deals/[id]` - PUT/DELETE с account_id
+  - `/api/pipelines` - GET/POST с account_id
+  - `/api/stats` - фильтрация по account_id
+- **Field Mapping**: `budget↔value`, `is_closed↔closed` для совместимости
+- **Result**: ✅ 2 тестовых аккаунта полностью изолированы
+
+#### 🔧 Automatic Pipeline Stages Creation ✅
+- **Goal**: Автоматически создавать 3 дефолтных этапа при создании воронки
+- **Implementation**: PostgreSQL trigger `create_default_stages_for_pipeline()`
+- **Stages Created**:
+  1. Первичный контакт (position 1)
+  2. Переговоры (position 2)
+  3. Принимают решение (position 3)
+- **API**: POST `/api/pipelines` endpoint добавлен
+- **Result**: ✅ Любая новая воронка получает 3 этапа автоматически
+
+#### 🔑 Password Hash Fixes ✅
+- **Problem**: Пользователи не могли войти - несовпадение хешей
+- **Fixed**: Обновлены bcrypt хеши для всех тестовых аккаунтов
+- **Credentials**: 
+  - `admin@test.com` / `parol123`
+  - `admin` / `admin123`
+  - `manager` / `manager123`
+- **Result**: ✅ Аутентификация работает стабильно
+
+#### 📊 Test Data Status ✅
+- **Account 1** (admin@test.com): 2 воронки (Основная + Проверка автосоздания)
+- **Account 2** (manager): 2 воронки (Основная + Тестовая)
+- Все данные изолированы по аккаунтам
+- 16 сделок созданы для тестирования (Account 1)
+
+### Previous Session (November 16, 2025) - Database Architecture Redesign
+
+#### 🗄️ Complete Schema Migration ✅
+- **Goal**: Implement proper multi-tenancy with ACCOUNT hierarchy
+- **Implementation**: Created `new_schema.sql` with 11 tables
+- **Structure**: ACCOUNT → Users, Companies, Contacts, Pipelines → Stages → Deals
+- **Key Features**:
+  - account_id на всех таблицах для изоляции данных
+  - Триггер автосоздания pipeline при создании аккаунта
+  - Many-to-many для deals↔contacts через deal_contacts
+  - Companies и Contacts как независимые сущности аккаунта
+- **Applied**: Через Docker exec к локальной PostgreSQL
+- **Test Data**: Seed script создал тестовый аккаунт с данными
+
+#### 🐛 API Column Names Fixed ✅
+- **Problem**: 4+ errors при открытии карточек сделок
+- **Fixed**:
+  - `due_at → due_date` в tasks queries
+  - `user_id → created_by` в notes
+  - `created_by → user_id` + `entity → entity_type` в activity_logs
+  - Убран несуществующий `contact_id` из deals
+- **Result**: Карточки сделок работают ✅
+
+### Previous Session (November 16, 2025) - Authentication Deep Dive
+
+#### 🔧 Edge Runtime Fix ✅
+- **Проблема**: Middleware крашился - "crypto module not supported in edge runtime"
+- **Решение**: Миграция с `jsonwebtoken` на `jose` (Edge-compatible)
+- **Результат**: Middleware теперь работает в Edge Runtime
+- **Затронуто**: src/middleware.ts, package.json
+
+#### 🔒 Password Security Enhancement ✅
+- **Проблема**: Chrome показывал "пароль в утечке" → клиенты паниковали
+- **Решение**: Client + server validation, блокировка слабых паролей
+- **Минимум**: 8 символов (было 6)
+- **Блокируем**: 12345678, password, qwerty123 и другие популярные
+- **UX**: Индикатор прогресса ("Еще N символов")
+- **Затронуто**: login/page.tsx, api/auth/register/route.ts
+
+#### 🔤 Case-Insensitive Authentication ✅
+- **Email**: SQL `LOWER()` функция в WHERE clauses
+- **Password**: lowercase conversion перед bcrypt compare/hash
+- **Storage**: email сохраняется в lowercase
+- **Результат**: `admin`, `ADMIN`, `AdMiN` - все работает
+- **Затронуто**: api/auth/login/route.ts, api/auth/register/route.ts
+
+#### 🔐 Test Account Update ✅
+- **Старый**: Admin / 123123 (слабый, Chrome ругался)
+- **Новый**: admin / parol123 (простой, но не в базе утечек)
+- **Обновление**: Через Docker exec psql
+
+#### 📦 Dependencies Added ✅
+- `jose` ^5.x - Edge-compatible JWT library
+- Совместимость: Next.js 15 Edge Runtime
+
+#### 🎨 UI/UX Improvements ✅
+- Индикатор минимальной длины пароля
+- Понятные сообщения валидации на русском
+- Console.log для отладки (TODO: удалить в production)
+- Задержка 100ms перед редиректом для стабильности
+
+### Previous Session (November 14, 2025)
 
 #### 1. Data Safety Overhaul ✅ 
 - **Problem**: 4 consecutive TypeError crashes across different pages

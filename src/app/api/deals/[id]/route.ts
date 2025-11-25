@@ -12,12 +12,10 @@ export async function GET(
     const dealResult = await query(
       `SELECT d.*, 
         c.name as company_name,
-        ct.first_name || ' ' || ct.last_name as contact_name,
         p.name as pipeline_name,
         s.name as stage_name
       FROM deals d
       LEFT JOIN companies c ON d.company_id = c.id
-      LEFT JOIN contacts ct ON d.contact_id = ct.id
       LEFT JOIN pipelines p ON d.pipeline_id = p.id
       LEFT JOIN stages s ON d.stage_id = s.id
       WHERE d.id = $1`,
@@ -30,13 +28,20 @@ export async function GET(
 
     const deal = dealResult.rows[0]
 
+    // Map budget to value for frontend compatibility
+    const dealWithValue = {
+      ...deal,
+      value: deal.budget,
+      closed: deal.is_closed
+    }
+
     // Get tasks for this deal
     const tasksResult = await query(
       `SELECT t.*, u.full_name as assigned_user_name
        FROM tasks t
        LEFT JOIN users u ON t.assigned_to = u.id
        WHERE t.deal_id = $1
-       ORDER BY t.due_at ASC`,
+       ORDER BY t.due_date ASC`,
       [dealId]
     )
 
@@ -44,7 +49,7 @@ export async function GET(
     const notesResult = await query(
       `SELECT n.*, u.full_name as author_name
        FROM notes n
-       LEFT JOIN users u ON n.user_id = u.id
+       LEFT JOIN users u ON n.created_by = u.id
        WHERE n.deal_id = $1
        ORDER BY n.created_at DESC`,
       [dealId]
@@ -55,14 +60,14 @@ export async function GET(
       `SELECT a.*, u.full_name as user_name
        FROM activity_logs a
        LEFT JOIN users u ON a.user_id = u.id
-       WHERE a.entity = 'deal' AND a.entity_id = $1
+       WHERE a.entity_type = 'deal' AND a.entity_id = $1
        ORDER BY a.created_at DESC
        LIMIT 20`,
       [dealId]
     )
 
     return NextResponse.json({
-      ...deal,
+      ...dealWithValue,
       tasks: tasksResult.rows,
       notes: notesResult.rows,
       activity: activityResult.rows
@@ -81,18 +86,17 @@ export async function PUT(
     const { id: dealId } = await params
     const body = await request.json()
     
-    const { title, value, currency, company_id, contact_id, closed } = body
+    const { title, value, currency, company_id, closed } = body
 
     await query(
       `UPDATE deals 
        SET title = COALESCE($1, title),
-           value = COALESCE($2, value),
+           budget = COALESCE($2, budget),
            currency = COALESCE($3, currency),
-           company_id = COALESCE($4, company_id),
-           contact_id = COALESCE($5, contact_id),
-           closed = COALESCE($6, closed)
-       WHERE id = $7`,
-      [title, value, currency, company_id, contact_id, closed, dealId]
+           company_id = $4,
+           is_closed = COALESCE($5, is_closed)
+       WHERE id = $6`,
+      [title, value, currency, company_id || null, closed, dealId]
     )
 
     return NextResponse.json({ success: true })

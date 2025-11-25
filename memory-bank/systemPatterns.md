@@ -40,7 +40,32 @@
 
 ## Key Technical Decisions
 
-### 1. No External State Management
+### 1. Multi-Tenant ACCOUNT Architecture
+**Decision**: Implement account-based data isolation at database level
+**Rationale**:
+- Supports multiple organizations in single database
+- Data isolation via account_id on all tables
+- Scalable for SaaS business model
+- Each account gets independent: users, companies, contacts, pipelines
+
+**Implementation:**
+- Top-level `accounts` table with subdomain
+- Foreign key `account_id` on all data tables
+- PostgreSQL trigger auto-creates default pipeline
+- Companies & Contacts as independent entities (not embedded in deals)
+
+**Data Relationships:**
+```
+Company (independent) ← deal.company_id (one-to-many)
+Contact (independent) ← deal_contacts.contact_id (many-to-many)
+```
+
+This allows:
+- Creating company/contact from deal modal → adds to account's master list
+- Same company/contact used across multiple deals
+- No data duplication
+
+### 2. No External State Management
 **Decision**: Use React's built-in useState instead of Redux/Zustand
 **Rationale**: 
 - Simpler codebase
@@ -64,13 +89,25 @@
 - Easier to add authentication later
 - Standard REST patterns
 
-### 4. Transactional Edit Pattern
+### 4. Transactional Edit Pattern ⚠️ КРИТИЧЕСКИ ВАЖНО
 **Decision**: Buffer changes locally, save on explicit action
 **Rationale**:
 - Prevents accidental data loss
 - User control over persistence
 - Better UX with undo capability
 - Matches amoCRM behavior
+
+**ПРАВИЛА РАБОТЫ С МОДАЛКОЙ:**
+1. **НИКОГДА не сохраняй данные автоматически** - только по кнопке "Сохранить"
+2. **Создание новых сущностей:**
+   - Контакты: создаются временно (`temp-${Date.now()}`), сохраняются в `pendingContactChanges.newContacts`
+   - Компании: создаются временно (`temp-company-${Date.now()}`), флаг `isNew: true`
+3. **Все изменения отслеживаются** через `setHasChanges(true)`
+4. **При закрытии с изменениями** - показывается диалог подтверждения
+5. **При сохранении:**
+   - Сначала создаются временные сущности в БД
+   - Затем обновляются связи
+   - Только после этого очищается `hasChanges`
 
 ## Design Patterns
 

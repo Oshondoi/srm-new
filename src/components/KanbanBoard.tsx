@@ -35,7 +35,7 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className="bg-slate-700 hover:bg-slate-600 rounded p-3 cursor-grab active:cursor-grabbing transition-colors"
+      className="deal-card bg-slate-700 hover:bg-slate-600 rounded p-3 cursor-grab active:cursor-grabbing transition-colors"
     >
       <div className="font-medium text-white mb-1">{deal.title}</div>
       {deal.value && (
@@ -77,7 +77,12 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
   const [stages, setStages] = useState<Stage[]>([])
   const [dealsByStage, setDealsByStage] = useState<Record<string, Deal[]>>({})
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
-  const [loading, setLoading] = useState(true)
+  
+  // Horizontal scroll drag state
+  const [isDraggingScroll, setIsDraggingScroll] = useState(false)
+  const [scrollStartX, setScrollStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -109,8 +114,8 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
           }
         }
         setDealsByStage(grouped)
-      } finally {
-        setLoading(false)
+      } catch (e) {
+        console.error('Failed to load pipeline data:', e)
       }
     }
     load()
@@ -186,7 +191,39 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
     }
   }
 
-  if (loading) return <div className="text-slate-400">Загрузка...</div>
+  // Horizontal scroll drag handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Ignore if clicking on a deal card
+    const target = e.target as HTMLElement
+    if (target.closest('.deal-card')) return
+    
+    const container = scrollContainerRef.current
+    if (!container) return
+    
+    setIsDraggingScroll(true)
+    setScrollStartX(e.pageX - container.offsetLeft)
+    setScrollLeft(container.scrollLeft)
+    e.preventDefault()
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingScroll) return
+    const container = scrollContainerRef.current
+    if (!container) return
+    
+    e.preventDefault()
+    const x = e.pageX - container.offsetLeft
+    const walk = (x - scrollStartX) * 1.5 // Scroll speed multiplier
+    container.scrollLeft = scrollLeft - walk
+  }
+
+  const handleMouseUp = () => {
+    setIsDraggingScroll(false)
+  }
+
+  const handleMouseLeave = () => {
+    setIsDraggingScroll(false)
+  }
 
   return (
     <DndContext
@@ -195,15 +232,29 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {stages.map((s) => (
-          <DroppableColumn
-            key={s.id}
-            stage={s}
-            deals={dealsByStage[s.id] || []}
-            onDealClick={(id) => onDealClick?.(id)}
-          />
-        ))}
+      <div className="flex justify-center w-full">
+        <div 
+          ref={scrollContainerRef}
+          className={`overflow-x-auto hide-scrollbar ${isDraggingScroll ? 'cursor-grabbing' : 'cursor-grab'}`}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          style={{ userSelect: isDraggingScroll ? 'none' : 'auto' }}
+        >
+          <div className="flex gap-4 w-fit mx-auto">
+            {stages.map((s, index) => (
+              <DroppableColumn
+                key={s.id}
+                stage={s}
+                deals={dealsByStage[s.id] || []}
+                onDealClick={(id) => onDealClick?.(id)}
+                isFirst={false}
+                isLast={false}
+              />
+            ))}
+          </div>
+        </div>
       </div>
       <DragOverlay>
         {activeDeal && (

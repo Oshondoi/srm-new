@@ -7,12 +7,14 @@
 | Framework | Next.js | 15.3.5 | Full-stack React with App Router |
 | Runtime | Node.js | 22+ | JavaScript runtime |
 | Language | TypeScript | 5.8.3 | Type safety |
-| Database | PostgreSQL | 15 | Primary data store |
+| Database | PostgreSQL | 15 | Primary data store (Docker) |
 | ORM | Drizzle | 0.39.3 | Schema management & migrations |
 | Styling | Tailwind CSS | 4.0.0 | Utility-first CSS |
 | UI Library | React | 18.3.1 | Component framework |
 | DnD | @dnd-kit/core | 6.3.1 | Drag and drop |
-| Auth | Supabase | 2.49.1 | Authentication (placeholder) |
+| Auth (Edge) | jose | latest | JWT for Edge Runtime (middleware) |
+| Auth (Node) | jsonwebtoken | latest | JWT for API routes |
+| Password Hash | bcryptjs | latest | Password hashing |
 
 ## Development Environment
 
@@ -31,9 +33,14 @@ Password: postgres
 # Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/srm"
 
-# Supabase (configured but not fully used)
-NEXT_PUBLIC_SUPABASE_URL=https://[project].supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# JWT Authentication
+JWT_SECRET="your-super-secret-jwt-key-change-in-production-12345"
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://nywsibcnngcexjbotsaq.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55d3NpYmNubmdjZXhqYm90c2FxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMzIyNjgsImV4cCI6MjA3ODgwODI2OH0.CnqXhZZlBKGjZtQRXunX4Cy1VKxw8OO6h7lBkQEZyE4
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55d3NpYmNubmdjZXhqYm90c2FxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzIzMjI2OCwiZXhwIjoyMDc4ODA4MjY4fQ.Xy_3LpMce5d-59rdESUKLkXHjP912HhhOECFvGF0wDI
+SUPABASE_URL=https://nywsibcnngcexjbotsaq.supabase.co
 ```
 
 ### Dev Server
@@ -46,21 +53,51 @@ Turbopack: Enabled (Next.js 15 default)
 
 ## Database Architecture
 
+### Schema v2.0 - ACCOUNT Hierarchy (November 16, 2025)
+
+**Multi-tenant Structure:**
+```sql
+ACCOUNT (id, name, subdomain, created_at)
+  ├── USERS (id, account_id, email, password_hash, full_name, role)
+  ├── COMPANIES (id, account_id, name, website, phone, ...)
+  ├── CONTACTS (id, account_id, first_name, last_name, email, phone, company_id)
+  ├── PIPELINES (id, account_id, name, created_at)
+  │     └── STAGES (id, pipeline_id, name, position, color)
+  │           └── DEALS (id, pipeline_id, stage_id, company_id, title, budget, ...)
+  │                 └── DEAL_CONTACTS (deal_id, contact_id) [many-to-many]
+  ├── TASKS (id, account_id, deal_id, title, description, due_date, assigned_to)
+  ├── NOTES (id, account_id, deal_id, content, created_by)
+  └── ACTIVITY_LOGS (id, account_id, user_id, entity_type, entity_id, action)
+```
+
+**Key Design Principles:**
+- All data isolated by `account_id` (multi-tenancy)
+- Companies & Contacts are independent entities (not tied to deals)
+- Deals reference company via `company_id` (one-to-many)
+- Deals ↔ Contacts via `deal_contacts` junction table (many-to-many)
+- Auto-create default pipeline on account creation (PostgreSQL trigger)
+- Case-insensitive email lookups via `LOWER(email)`
+
+**Important Column Names (for API queries):**
+- tasks: `due_date` (NOT due_at)
+- notes: `created_by` (FK to users)
+- activity_logs: `user_id` (FK to users), `entity_type` (NOT entity)
+- deals: NO `contact_id` field (use deal_contacts table)
+
 ### Connection Management
 ```typescript
 // src/lib/db.ts
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-})
+import { Client } from 'pg'
 
 export async function query(text: string, params?: any[]) {
-  const client = await pool.connect()
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL
+  })
+  await client.connect()
   try {
     return await client.query(text, params)
   } finally {
-    client.release()
+    await client.end()
   }
 }
 ```
@@ -82,13 +119,17 @@ export default {
 ```
 users (authentication placeholder)
   ├── id (UUID, PK)
-  ├── email, name, avatar_url
+  ├── email (VARCHAR 320, UNIQUE)
+  ├── password_hash (VARCHAR 255) -- bcrypt hashed
+  ├── full_name (VARCHAR 255)
+  ├── role (VARCHAR 32, default 'manager')
   └── created_at, updated_at
 
 companies (organizations)
   ├── id (UUID, PK)
   ├── name (TEXT, required)
   ├── phone (VARCHAR 64)
+  ├── user_id (UUID, FK → users) -- data isolation
   └── created_at, updated_at
 
 contacts (people)
@@ -97,18 +138,21 @@ contacts (people)
   ├── first_name, last_name (TEXT)
   ├── email, phone (VARCHAR 255/64)
   ├── position (VARCHAR 120)
+  ├── user_id (UUID, FK → users) -- data isolation
   └── created_at, updated_at
 
 pipelines (sales workflows)
   ├── id (UUID, PK)
   ├── name (TEXT, required)
+  ├── user_id (UUID, FK → users) -- each user has their pipelines
   └── created_at
+  -- Auto-created on user registration via trigger
 
 stages (pipeline steps)
   ├── id (UUID, PK)
   ├── pipeline_id (UUID, FK → pipelines)
   ├── name (TEXT, required)
-  ├── order (INT, default 0)
+  ├── position (INT, default 0)
   └── created_at
 
 deals (opportunities)
@@ -387,7 +431,64 @@ module.exports = {
 | @dnd-kit | Best React DnD library, accessible, performant |
 | Tailwind 4 | Fastest styling, consistent design system |
 | pg (node-postgres) | Direct PostgreSQL driver, no ORM overhead |
-| Supabase | Future auth/realtime, PostgreSQL compatible |
+| bcryptjs | Industry standard password hashing (10 rounds) |
+| jsonwebtoken | JWT token generation/verification, widely used |
+
+---
+
+## Authentication Architecture
+
+### JWT Flow
+```
+1. User submits credentials (email + password)
+2. Server verifies password with bcrypt.compare()
+3. Server generates JWT with { userId, email }
+4. Token returned to client (expires in 30 days)
+5. Client stores in:
+   - localStorage (for client-side access)
+   - Cookie (for middleware access)
+6. Middleware checks cookie on each request
+7. API routes can verify Bearer token if needed
+```
+
+### Security Measures
+- Passwords hashed with bcrypt (10 salt rounds)
+- JWT tokens signed with secret from .env
+- Tokens expire after 30 days
+- Middleware protects all routes except /login and /api/auth/*
+- Email unique constraint prevents duplicates
+
+### Auto-Pipeline Creation
+```sql
+-- Trigger function
+CREATE FUNCTION create_default_pipeline_for_user()
+RETURNS TRIGGER AS $$
+DECLARE pipeline_id UUID;
+BEGIN
+  INSERT INTO pipelines (name, user_id)
+  VALUES ('Основная воронка', NEW.id)
+  RETURNING id INTO pipeline_id;
+  
+  INSERT INTO stages (pipeline_id, name, position)
+  VALUES 
+    (pipeline_id, 'Первичный контакт', 1),
+    (pipeline_id, 'Переговоры', 2),
+    (pipeline_id, 'Принимают решение', 3),
+    (pipeline_id, 'Согласование договора', 4),
+    (pipeline_id, 'Успешно реализовано', 5);
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger
+CREATE TRIGGER trigger_create_default_pipeline
+  AFTER INSERT ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION create_default_pipeline_for_user();
+```
+
+This ensures every new user automatically gets a fully configured pipeline with 5 stages on registration.
 
 ## Known Technical Debt
 - No authentication implemented (placeholder users)

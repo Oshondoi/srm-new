@@ -33,7 +33,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { first_name, last_name, email, phone, position, company_id } = body
+    const { first_name, last_name, email, phone, position, company_id, budget2, meeting_date } = body
 
     const result = await query(
       `UPDATE contacts 
@@ -42,10 +42,12 @@ export async function PUT(
            email = COALESCE($3, email),
            phone = COALESCE($4, phone),
            position = COALESCE($5, position),
-           company_id = COALESCE($6, company_id)
-       WHERE id = $7
+           company_id = COALESCE($6, company_id),
+           budget2 = COALESCE($7, budget2),
+           meeting_date = COALESCE($8, meeting_date)
+       WHERE id = $9
        RETURNING *`,
-      [first_name, last_name, email, phone, position, company_id, id]
+      [first_name, last_name, email, phone, position, company_id, budget2, meeting_date, id]
     )
 
     if (result.rows.length === 0) {

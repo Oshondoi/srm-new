@@ -13,6 +13,7 @@ export default function LeadsPage() {
   const [companies, setCompanies] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
   const [createForm, setCreateForm] = useState({
     title: '',
     value: '',
@@ -26,14 +27,16 @@ export default function LeadsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [pipelinesRes, companiesRes, contactsRes] = await Promise.all([
+        const [pipelinesRes, companiesRes, contactsRes, activePipelineRes] = await Promise.all([
           fetch('/api/pipelines'),
           fetch('/api/companies'),
-          fetch('/api/contacts')
+          fetch('/api/contacts'),
+          fetch('/api/account/active-pipeline')
         ])
         const pipelinesData = await pipelinesRes.json()
         const companiesData = await companiesRes.json()
         const contactsData = await contactsRes.json()
+        const activePipelineData = await activePipelineRes.json()
         
         setPipelines(Array.isArray(pipelinesData) ? pipelinesData : [])
         setCompanies(Array.isArray(companiesData) ? companiesData : [])
@@ -41,12 +44,12 @@ export default function LeadsPage() {
         
         const pipelines = Array.isArray(pipelinesData) ? pipelinesData : []
         if (pipelines.length > 0) {
-          setSelectedPipeline(pipelines[0].id)
-          setCreateForm(prev => ({ 
-            ...prev, 
-            pipeline_id: pipelines[0].id,
-            stage_id: pipelines[0].stages?.[0]?.id || ''
-          }))
+          // Восстанавливаем последнюю активную воронку из БД (привязано к аккаунту)
+          const savedPipelineId = activePipelineData.pipelineId
+          const pipelineExists = savedPipelineId && pipelines.find(p => p.id === savedPipelineId)
+          const pipelineToSelect = pipelineExists ? savedPipelineId : pipelines[0].id
+          
+          setSelectedPipeline(pipelineToSelect)
         }
       } finally {
         setLoading(false)
@@ -55,22 +58,40 @@ export default function LeadsPage() {
     load()
   }, [])
   
+  // Обновляем форму при смене активной воронки
   useEffect(() => {
-    if (createForm.pipeline_id) {
-      const pipeline = pipelines.find(p => p.id === createForm.pipeline_id)
-      if (pipeline?.stages?.length > 0) {
-        setStages(pipeline.stages)
-        setCreateForm(prev => ({ ...prev, stage_id: pipeline.stages[0].id }))
+    if (selectedPipeline) {
+      // Сохраняем выбранную воронку в БД (привязано к аккаунту)
+      fetch('/api/account/active-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pipelineId: selectedPipeline })
+      }).catch(err => console.error('Failed to save active pipeline:', err))
+      
+      const pipeline = pipelines.find(p => p.id === selectedPipeline)
+      if (pipeline) {
+        setStages(pipeline.stages || [])
+        setCreateForm(prev => ({ 
+          ...prev, 
+          pipeline_id: selectedPipeline,
+          stage_id: pipeline.stages?.[0]?.id || ''
+        }))
       }
     }
-  }, [createForm.pipeline_id, pipelines])
+  }, [selectedPipeline, pipelines])
+  
+
 
   function handleDealClick(dealId: string) {
     setSelectedDealId(dealId)
   }
 
-  function handleCloseModal() {
+  function handleCloseModal(needsRefresh = false) {
     setSelectedDealId(null)
+    // Обновляем доску только если были изменения
+    if (needsRefresh) {
+      setRefreshKey(prev => prev + 1)
+    }
   }
   
   async function handleCreateDeal(e: React.FormEvent) {
@@ -101,14 +122,13 @@ export default function LeadsPage() {
           pipeline_id: selectedPipeline || '',
           stage_id: stages[0]?.id || ''
         })
-        window.location.reload()
+        // Обновляем KanbanBoard без перезагрузки страницы
+        setRefreshKey(prev => prev + 1)
       }
     } catch (err) {
       console.error('Failed to create deal:', err)
     }
   }
-
-  if (loading) return <div className="text-white">Загрузка...</div>
 
   return (
     <div>
@@ -141,7 +161,9 @@ export default function LeadsPage() {
       )}
 
       {selectedPipeline && (
-        <KanbanBoard pipelineId={selectedPipeline} onDealClick={handleDealClick} />
+        <div className="flex justify-center">
+          <KanbanBoard key={`${selectedPipeline}-${refreshKey}`} pipelineId={selectedPipeline} onDealClick={handleDealClick} />
+        </div>
       )}
 
       {selectedDealId && (
