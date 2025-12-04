@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '../../../../lib/db'
+import { getUserFromRequest } from '../../../../lib/auth'
 
 export async function GET(
   request: Request,
@@ -31,9 +32,17 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Auth & multi-tenancy enforcement
+    const user = getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     const { id } = await params
     const body = await request.json()
-    const { first_name, last_name, email, phone, position, company_id, budget2, meeting_date } = body
+    const { first_name, last_name, email, phone, position, company_id, budget2 } = body
+
+    // Нормализация company_id: пустая строка означает очистку, иначе UUID или null
+    const normalizedCompanyId = company_id === '' ? null : company_id || null
 
     const result = await query(
       `UPDATE contacts 
@@ -42,12 +51,21 @@ export async function PUT(
            email = COALESCE($3, email),
            phone = COALESCE($4, phone),
            position = COALESCE($5, position),
-           company_id = COALESCE($6, company_id),
-           budget2 = COALESCE($7, budget2),
-           meeting_date = COALESCE($8, meeting_date)
-       WHERE id = $9
+           company_id = $6,
+           budget2 = COALESCE($7, budget2)
+       WHERE id = $8 AND account_id = $9
        RETURNING *`,
-      [first_name, last_name, email, phone, position, company_id, budget2, meeting_date, id]
+      [
+        first_name,
+        last_name,
+        email,
+        phone,
+        position,
+        normalizedCompanyId,
+        budget2,
+        id,
+        user.accountId
+      ]
     )
 
     if (result.rows.length === 0) {

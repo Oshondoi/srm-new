@@ -45,11 +45,18 @@ SUPABASE_URL=https://nywsibcnngcexjbotsaq.supabase.co
 
 ### Dev Server
 ```bash
-Port: 3000
+Port: 3000 (or 3001)
 Command: npm run dev
 Hot Reload: Enabled
 Turbopack: Enabled (Next.js 15 default)
 ```
+
+### Known Pitfalls & Fixes (Nov 28, 2025)
+- If dev shows 500/502 or `next: not found`:
+  - Reinstall deps: `rm -rf node_modules package-lock.json && npm install`
+  - Ensure `@swc/helpers` is present: `npm install @swc/helpers@^0.5.1`
+  - Start dev: `PORT=3001 npm run dev`
+- Logs location used in sessions: `/tmp/next-dev.log`
 
 ## Database Architecture
 

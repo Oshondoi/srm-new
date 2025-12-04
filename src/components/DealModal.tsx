@@ -3,11 +3,13 @@
 import React, { useEffect, useState, useRef } from 'react'
 
 interface DealModalProps {
-  dealId: string
+  dealId: string | 'new'
   onClose: (needsRefresh?: boolean) => void
+  activePipelineId?: string | null
 }
 
-export default function DealModal({ dealId, onClose }: DealModalProps) {
+export default function DealModal({ dealId, onClose, activePipelineId }: DealModalProps) {
+  const isNewDeal = dealId === 'new'
   const [deal, setDeal] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [isReady, setIsReady] = useState(false)
@@ -46,6 +48,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
   const [isOpening, setIsOpening] = useState(true)
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [chatType, setChatType] = useState<'chat' | 'note' | 'task'>('chat')
   const [showMentions, setShowMentions] = useState(false)
@@ -53,11 +56,13 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [selectedRecipient, setSelectedRecipient] = useState<any>({ name: 'Показать только участников', type: 'all' })
   const [showRecipientDropdown, setShowRecipientDropdown] = useState(false)
+  const [showResponsibleDropdown, setShowResponsibleDropdown] = useState(false)
   const [accountUsers, setAccountUsers] = useState<any[]>([])
   const [taskRelationType, setTaskRelationType] = useState<string>('meeting')
   const [showTaskRelationDropdown, setShowTaskRelationDropdown] = useState(false)
   const [chatSearchQuery, setChatSearchQuery] = useState('')
   const [showChatFilters, setShowChatFilters] = useState(false)
+  const [isClosingFilters, setIsClosingFilters] = useState(false)
   const [chatFilter, setChatFilter] = useState<'all' | 'chats-only' | 'chats-with-clients'>('all')
   
   // Детальные фильтры
@@ -73,6 +78,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
   const [showEventTypesDropdown, setShowEventTypesDropdown] = useState(false)
   const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([])
   const [eventTypesSearch, setEventTypesSearch] = useState('')
+  
+  // Subscription state
+  const [userPlan, setUserPlan] = useState<'free' | 'professional' | 'business'>('free')
+  const [hasSearchAccess, setHasSearchAccess] = useState(false)
   
   const relatedObjectTypes = [
     { id: 'contacts', label: 'Контакты' },
@@ -100,14 +109,49 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
     })
     
     // Загружаем только критичные данные при открытии
-    loadDeal()
-    loadDealContacts()
-    loadChatMessages()
+    if (!isNewDeal) {
+      loadDeal()
+      loadDealContacts()
+      loadChatMessages()
+    } else {
+      // Для новой сделки инициализируем пустую форму с активной воронкой
+      setDeal(null)
+      
+      // Загружаем воронки и устанавливаем АКТИВНУЮ воронку
+      fetch('/api/pipelines')
+        .then(res => res.json())
+        .then(pipelines => {
+          if (pipelines && pipelines.length > 0) {
+            // Находим активную воронку или берём первую
+            const activePipeline = activePipelineId 
+              ? pipelines.find((p: any) => p.id === activePipelineId) || pipelines[0]
+              : pipelines[0]
+            
+            const firstStage = activePipeline.stages?.[0]
+            setStages(activePipeline.stages || [])
+            setEditForm({
+              title: '',
+              value: '',
+              currency: 'RUB',
+              company_id: '',
+              stage_id: firstStage?.id || '',
+              stage_name: firstStage?.name || '',
+              responsible_user_id: '',
+              pipeline_id: activePipeline.id
+            })
+          }
+        })
+        .catch(e => console.error('Failed to load pipelines:', e))
+      
+      setDealContacts([])
+    }
+    
     loadAccountUsers()
+    loadSubscription()
+    loadReferences() // Загружаем компании и контакты для автокомплита и контекстного меню
     // Небольшая задержка перед показом контента (избегаем моргания при анимации открытия)
     setTimeout(() => setIsReady(true), 50)
-    // Списки компаний/контактов загружаем лениво при редактировании
-  }, [dealId])
+  }, [dealId, isNewDeal])
   
   useEffect(() => {
     if (deal) {
@@ -117,7 +161,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
           title: deal.title || '',
           value: deal.value || '',
           currency: deal.currency || 'RUB',
-          company_id: deal.company_id || ''
+          company_id: deal.company_id || '',
+          stage_id: deal.stage_id || '',
+          stage_name: deal.stage_name || '',
+          responsible_user_id: deal.responsible_user_id || ''
         })
       })
       // Закрываем dropdown при загрузке новых данных
@@ -125,25 +172,35 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
     }
   }, [deal])
   
+  // Функция для анимированного закрытия фильтров
+  const closeChatFilters = () => {
+    setIsClosingFilters(true)
+    setTimeout(() => {
+      setShowChatFilters(false)
+      setIsClosingFilters(false)
+    }, 300) // Длительность анимации
+  }
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
       
-      // Закрываем панель фильтров чата при клике вне её
-      if (showChatFilters && !target.closest('.chat-filters-panel') && !target.closest('button[title="Фильтры"]')) {
-        setShowChatFilters(false)
+      // Закрываем панель фильтров чата при клике вне её (НО НЕ при клике на поле поиска)
+      if (showChatFilters && !target.closest('.chat-filters-panel') && !target.closest('.search-filter-toggle')) {
+        closeChatFilters()
         return
       }
       
       // Закрываем все dropdown'ы, если клик был вне них
-      if (!target.closest('.dropdown-container') && !target.closest('.stage-dropdown-container') && !target.closest('.recipient-dropdown') && !target.closest('.task-relation-dropdown')) {
+      if (!target.closest('.dropdown-container') && !target.closest('.stage-dropdown-container') && !target.closest('.recipient-dropdown') && !target.closest('.responsible-dropdown') && !target.closest('.task-relation-dropdown') && !target.closest('.context-menu') && !target.closest('.context-menu-trigger')) {
         setActiveMenu(null)
         setShowStageDropdown(false)
         setShowRecipientDropdown(false)
+        setShowResponsibleDropdown(false)
         setShowTaskRelationDropdown(false)
       } else {
         // Если клик внутри одного dropdown, закрываем остальные
-        if (!target.closest('.dropdown-container')) {
+        if (!target.closest('.dropdown-container') && !target.closest('.context-menu') && !target.closest('.context-menu-trigger')) {
           setActiveMenu(null)
         }
         if (!target.closest('.stage-dropdown-container')) {
@@ -151,6 +208,9 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
         }
         if (!target.closest('.recipient-dropdown')) {
           setShowRecipientDropdown(false)
+        }
+        if (!target.closest('.responsible-dropdown')) {
+          setShowResponsibleDropdown(false)
         }
         if (!target.closest('.task-relation-dropdown')) {
           setShowTaskRelationDropdown(false)
@@ -161,23 +221,38 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
     return () => document.removeEventListener('click', handleClickOutside)
   }, [showChatFilters])
 
-  // Измеряем высоты ВСЕХ контактов при загрузке и изменениях
+  // Пересчёт высот аккордеона контактов (вынесено в функцию для ручного вызова)
+  function recalcContactHeights() {
+    if (dealContacts.length === 0) return
+    // Ждем следующий кадр чтобы refs успели обновиться
+    requestAnimationFrame(() => {
+      const heights: Record<string, number> = {}
+      for (const contact of dealContacts) {
+        const el = contentRefs.current[contact.id]
+        if (el) {
+          heights[contact.id] = el.scrollHeight + 20 // учёт padding контейнера
+        }
+      }
+      setContactHeights(heights)
+    })
+  }
+
+  // Автоматический пересчёт при изменении списка/редактировании структуры
+  useEffect(() => {
+    recalcContactHeights()
+  }, [dealContacts, editingContact, editingContactCompany])
+
+  // Дополнительный пересчёт при смене активного контакта (гарантия корректной высоты после клика)
   useEffect(() => {
     if (dealContacts.length > 0) {
-      // Ждем следующий тик, чтобы контент отрендерился
-      setTimeout(() => {
-        const heights: Record<string, number> = {}
-        dealContacts.forEach((contact) => {
-          const contentEl = contentRefs.current[contact.id]
-          if (contentEl) {
-            // Измеряем полную высоту + добавляем padding (20px = 10px сверху + 10px снизу)
-            heights[contact.id] = contentEl.scrollHeight + 20
-          }
+      // Два кадра подряд для стабильности измерения после анимации
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          recalcContactHeights()
         })
-        setContactHeights(heights)
-      }, 0)
+      })
     }
-  }, [dealContacts, editingContact, editingContactCompany])
+  }, [activeContactIndex, dealContacts.length])
 
   // Автопрокрутка чата вниз при добавлении сообщений
   useEffect(() => {
@@ -232,20 +307,17 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
     }
   }
 
-  async function changeStage(newStageId: string) {
-    try {
-      const res = await fetch('/api/deals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dealId, toStageId: newStageId })
-      })
-      if (res.ok) {
-        await loadDeal()
-        setShowStageDropdown(false)
-      }
-    } catch (e) {
-      console.error('Failed to change stage:', e)
-    }
+  function changeStage(newStageId: string) {
+    const selected = stages.find((s: any) => s.id === newStageId)
+    if (!selected) return
+    // Буферизуем изменение этапа до сохранения
+    setEditForm((prev: any) => ({
+      ...prev,
+      stage_id: selected.id,
+      stage_name: selected.name
+    }))
+    setHasChanges(true)
+    setShowStageDropdown(false)
   }
 
   async function addContactToDeal(contactId: string) {
@@ -274,6 +346,8 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
   }
 
   async function loadDeal() {
+    if (isNewDeal) return // Для новой сделки не загружаем данные
+    
     try {
       const res = await fetch(`/api/deals/${dealId}`)
       if (!res.ok) throw new Error('Failed to load deal')
@@ -298,11 +372,45 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
         const users = await res.json()
         console.log('Loaded account users:', users)
         setAccountUsers(users)
+        
+        // Для новой сделки устанавливаем текущего пользователя как ответственного
+        if (isNewDeal && users.length > 0) {
+          // Получаем текущего пользователя из /api/auth/me
+          fetch('/api/auth/me', { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+              if (data.user) {
+                setEditForm(prev => ({
+                  ...prev,
+                  responsible_user_id: data.user.id
+                }))
+              }
+            })
+            .catch(e => console.error('Failed to get current user:', e))
+        }
       } else {
         console.error('Failed to load users, status:', res.status, await res.text())
       }
     } catch (e) {
       console.error('Failed to load account users:', e)
+    }
+  }
+
+  async function loadSubscription() {
+    try {
+      const res = await fetch('/api/account/subscription', {
+        credentials: 'include'
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUserPlan(data.plan || 'free')
+        // Проверяем доступ к поиску по сообщениям
+        setHasSearchAccess(data.plan === 'professional' || data.plan === 'business')
+      }
+    } catch (e) {
+      console.error('Failed to load subscription:', e)
+      setUserPlan('free')
+      setHasSearchAccess(false)
     }
   }
 
@@ -436,18 +544,140 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
   
   async function handleSave() {
     try {
-      // Сохраняем основные поля сделки
+      if (isNewDeal) {
+        // Создание новой сделки в активной воронке
+        const payload: any = {
+          title: editForm.title || undefined, // Если пусто - бэкенд сгенерирует "Сделка #N"
+          value: parseFloat(editForm.value) || 0,
+          currency: editForm.currency || 'RUB',
+          company_id: editForm.company_id || null,
+          pipeline_id: editForm.pipeline_id, // Активная воронка
+          stage_id: editForm.stage_id, // Первый этап активной воронки
+          responsible_user_id: editForm.responsible_user_id || undefined
+        }
+        
+        const res = await fetch('/api/deals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        if (!res.ok) {
+          const errorText = await res.text()
+          console.error('Create deal failed:', res.status, errorText)
+          throw new Error('Failed to create deal')
+        }
+        
+        const newDeal = await res.json()
+        
+        // 1. Создаём новую компанию если она временная
+        let finalCompanyId = editForm.company_id
+        if (editForm.company_id && editForm.company_id.startsWith('temp-company-')) {
+          const company = companies.find(c => c.id === editForm.company_id)
+          if (company) {
+            const companyRes = await fetch('/api/companies', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: company.name })
+            })
+            if (companyRes.ok) {
+              const createdCompany = await companyRes.json()
+              finalCompanyId = createdCompany.id
+              // Обновляем company_id в новой сделке
+              await fetch(`/api/deals/${newDeal.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: newDeal.title,
+                  value: newDeal.budget || 0,
+                  currency: newDeal.currency || 'RUB',
+                  company_id: finalCompanyId
+                })
+              })
+            }
+          }
+        }
+        
+        // 2. Создаём новые контакты в БД
+        const createdContactIds: string[] = []
+        for (const newContact of pendingContactChanges.newContacts) {
+          const contactRes = await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              first_name: newContact.first_name,
+              last_name: newContact.last_name,
+              company_id: newContact.company_id || finalCompanyId || null
+            })
+          })
+          if (contactRes.ok) {
+            const created = await contactRes.json()
+            createdContactIds.push(created.id)
+          } else {
+            console.error('Failed to create contact:', await contactRes.text())
+          }
+        }
+        
+        // 3. Привязываем новые контакты к сделке
+        for (const contactId of createdContactIds) {
+          await fetch(`/api/deals/${newDeal.id}/contacts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: contactId })
+          })
+        }
+        
+        // 4. Привязываем существующие контакты к новой сделке
+        for (const contactId of pendingContactChanges.added) {
+          await fetch(`/api/deals/${newDeal.id}/contacts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contact_id: contactId })
+          })
+        }
+        
+        setSaveSuccess(true)
+        setTimeout(() => setSaveSuccess(false), 2000)
+        onClose(true) // Закрываем и обновляем доску
+        return
+      }
+      
+      // Сохраняем основные поля существующей сделки - все опционально
+      const payload: any = {
+        title: editForm.title || 'Сделка без названия',
+        value: parseFloat(editForm.value) || 0,
+        currency: editForm.currency || 'RUB',
+        company_id: editForm.company_id || null
+      }
+      
+      if (editForm.stage_id) {
+        payload.stage_id = editForm.stage_id
+      }
+      
+      if (editForm.responsible_user_id) {
+        payload.responsible_user_id = editForm.responsible_user_id
+      }
+      
       const res = await fetch(`/api/deals/${dealId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editForm.title,
-          value: parseFloat(editForm.value) || 0,
-          currency: editForm.currency,
-          company_id: editForm.company_id || null
-        })
+        body: JSON.stringify(payload)
       })
       if (!res.ok) throw new Error('Failed to save')
+
+      // Если этап изменился относительно оригинального значения сделки — применяем через общий endpoint (единый источник логики)
+      if (deal && editForm.stage_id && editForm.stage_id !== deal.stage_id) {
+        const stageRes = await fetch('/api/deals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dealId, toStageId: editForm.stage_id })
+        })
+        if (!stageRes.ok) {
+          console.error('Stage update failed, status:', stageRes.status)
+        } else {
+          // Сообщаем доске о перемещении сделки (не закрывая модалку)
+          window.dispatchEvent(new CustomEvent('deal-updated', { detail: { dealId, stage_id: editForm.stage_id } }))
+        }
+      }
 
       // 1. Создаём новые контакты в БД
       const createdContactIds: string[] = []
@@ -568,7 +798,9 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
       await loadDeal()
       await loadDealContacts()
       await loadReferences()
-      alert('Сохранено!')
+      // Показываем статус сохранения
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2500)
     } catch (e) {
       console.error(e)
       alert('Ошибка при сохранении')
@@ -633,9 +865,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
       
       if (forNewContact) {
         // Создаём временный контакт (НЕ сохраняем в БД)
+        const ts = Date.now()
         const tempContact = {
-          id: `temp-${Date.now()}`,
-          tempId: `temp-${Date.now()}`,
+          id: `temp-${ts}`,
+          tempId: `temp-${ts}`,
           first_name,
           last_name,
           company_id: editForm.company_id || null,
@@ -643,7 +876,17 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
         }
         
         // Добавляем в локальный список для отображения
-        setDealContacts([...dealContacts, tempContact])
+        const newIndex = dealContacts.length
+        setDealContacts(prev => {
+          const updated = [...prev, tempContact]
+          return updated
+        })
+        // Автораскрытие только что созданного контакта
+        setActiveContactIndex(newIndex)
+        // Ручной пересчёт высот после добавления (fallback если эффект ещё не сработал)
+        // Двойной пересчёт с небольшими задержками для стабильности DOM
+        setTimeout(() => recalcContactHeights(), 30)
+        setTimeout(() => recalcContactHeights(), 120)
         
         // Сохраняем в pending для создания при сохранении карточки
         setPendingContactChanges(prev => ({
@@ -768,17 +1011,12 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
           </div>
 
           {/* Stage Selector - amoCRM style */}
-          {!deal || stages.length === 0 || !isReady ? (
-            /* Skeleton для этапов */
+          {stages.length === 0 || (!isNewDeal && !isReady) ? (
+            /* Skeleton для этапов - одна сплошная полоска */
             <div className="relative stage-dropdown-container">
               <div className="group rounded px-2 py-1.5 -mx-2 animate-pulse">
-                <div className="flex gap-1 mb-1.5">
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
-                  <div className="flex-1 h-1.5 bg-slate-700 rounded" />
+                <div className="mb-1.5">
+                  <div className="w-full h-1.5 bg-slate-700 rounded" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-300">
@@ -801,7 +1039,8 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
               {/* Полоски этапов */}
               <div className="flex gap-1 mb-1.5">
                 {stages.map((stage, index) => {
-                  const currentIndex = stages.findIndex(s => s.id === deal?.stage_id)
+                  const currentStageId = (editForm.stage_id || deal?.stage_id)
+                  const currentIndex = stages.findIndex(s => s.id === currentStageId)
                   const isPassed = index <= currentIndex
                   
                   const stageColors: Record<string, string> = {
@@ -827,7 +1066,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
               {/* Название текущего этапа со стрелкой */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-300">
-                  {deal?.stage_name}
+                  {editForm.stage_name || deal?.stage_name}
                 </span>
                 <span className="text-xs text-slate-400">▼</span>
               </div>
@@ -896,7 +1135,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-2">
-          {!deal ? (
+          {!isNewDeal && !deal ? (
             <div className="space-y-2 animate-pulse">
               {/* Skeleton для "Общая информация" */}
               <div className="space-y-1">
@@ -931,9 +1170,45 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
               <div>
                 <div className="space-y-1">
                   {/* Ответственный */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-1 relative">
                     <div className="w-40 text-sm text-slate-400">Отв-ный</div>
-                    <div className="flex-1 text-white">Элестет</div>
+                    <div className="flex-1 relative">
+                      <button
+                        type="button"
+                        className="responsible-dropdown w-full block text-left text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowResponsibleDropdown(!showResponsibleDropdown)
+                        }}
+                      >
+                        {(() => {
+                          const current = accountUsers.find(u => u.id === (editForm.responsible_user_id || deal?.responsible_user_id))
+                          return current ? (current.full_name || current.email) : 'Не указано'
+                        })()}
+                      </button>
+                      {showResponsibleDropdown && (
+                        <div className="absolute z-30 mt-1 bg-slate-700 rounded shadow-lg responsible-dropdown w-full">
+                          <div className="p-2 text-xs text-slate-400">Выберите пользователя</div>
+                          {accountUsers.length === 0 && (
+                            <div className="px-3 py-2 text-slate-400">Пользователей нет</div>
+                          )}
+                          {accountUsers.map(u => (
+                            <button
+                              key={u.id}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-600 text-white"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                updateEditForm('responsible_user_id', u.id)
+                                setShowResponsibleDropdown(false)
+                              }}
+                            >
+                              {u.full_name || u.email}
+                              <span className="text-xs text-slate-400 ml-2">{u.role}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Бюджет */}
@@ -973,13 +1248,15 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                     return (
                     <div 
                       key={dealContact.id} 
+                      data-deal-contact-accordion
+                      data-contact-id={dealContact.id}
                       onClick={() => {
                         if (!isActive) {
                           setActiveContactIndex(index)
                           setActiveMenu(null)
                         }
                       }}
-                      className={`bg-slate-700/30 rounded-lg overflow-hidden transition-all duration-500 ease-in-out ${!isActive ? 'cursor-pointer hover:bg-slate-700/50' : ''}`}
+                      className={`bg-slate-700/30 rounded-lg overflow-hidden deal-contact-accordion ${!isActive ? 'cursor-pointer hover:bg-slate-700/50 deal-contact-collapsed' : 'deal-contact-expanded'}`}
                       style={{
                         height: isActive ? (expandedHeight ? `${expandedHeight}px` : 'auto') : `${collapsedHeight}px`,
                         padding: '10px'
@@ -992,23 +1269,23 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                         <div className="flex-1">
                           {editingContact !== dealContact.id ? (
                             <div 
+                              data-contact-name-id={dealContact.id}
                               onClick={(e) => {
-                                if (isActive) {
-                                  e.stopPropagation()
-                                  setActiveMenu(activeMenu === `contact-${dealContact.id}` ? null : `contact-${dealContact.id}`)
-                                }
+                                if (!isActive) return // в неактивном контакте ФИО не кликабельно
+                                e.stopPropagation()
+                                setActiveMenu(activeMenu === `contact-${dealContact.id}` ? null : `contact-${dealContact.id}`)
                               }}
                               onDoubleClick={(e) => {
-                                if (isActive) {
-                                  e.stopPropagation()
-                                  setEditingContact(dealContact.id)
-                                  setContactSearch(`${dealContact.first_name} ${dealContact.last_name}`)
-                                  setActiveMenu(null)
-                                }
+                                if (!isActive) return // в неактивном контакте ФИО не кликабельно
+                                e.stopPropagation()
+                                setEditingContact(dealContact.id)
+                                setContactSearch(`${dealContact.first_name} ${dealContact.last_name}`)
+                                setActiveMenu(null)
                               }}
-                              className={`text-white ${isActive ? 'cursor-pointer hover:bg-slate-700/50 px-2 py-1 rounded -mx-2' : 'px-2 py-1 -mx-2'}`}
+                              className={`context-menu-trigger text-white px-2 py-1 rounded -mx-2 ${isActive ? 'cursor-pointer hover:bg-slate-700/50' : ''}`}
+                              style={{ pointerEvents: isActive ? 'auto' : 'none' }}
                             >
-                              {dealContact.first_name} {dealContact.last_name}
+                              <span data-contact-name-trigger={dealContact.id}>{dealContact.first_name} {dealContact.last_name}</span>
                             </div>
                           ) : (
                             <div className="relative">
@@ -1054,7 +1331,28 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                         </div>
                         
                         {activeMenu === `contact-${dealContact.id}` && (
-                          <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded shadow-lg py-1 z-10 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                          <div 
+                            className="context-menu fixed bg-slate-700 rounded shadow-xl py-1 z-[100] min-w-[200px] border border-slate-600" 
+                            style={{
+                              ...(typeof window !== 'undefined' ? (() => {
+                                const trigger = document.querySelector(`[data-contact-name-trigger="${dealContact.id}"]`)
+                                const rect = trigger?.getBoundingClientRect()
+                                const menuWidth = 220
+                                const menuHeightEstimate = 180
+                                const gap = 6
+                                if (!rect) return { top: '0px', left: '0px' }
+                                const hasSpaceBelow = rect.bottom + gap + menuHeightEstimate <= window.innerHeight
+                                const top = hasSpaceBelow ? (rect.bottom + gap) : Math.max(8, rect.top - menuHeightEstimate - gap)
+                                // Прилегаем к левому краю строки ФИО
+                                let left = rect.left
+                                const maxLeft = window.innerWidth - menuWidth - 8
+                                if (left > maxLeft) left = maxLeft
+                                if (left < 8) left = 8
+                                return { top: `${top}px`, left: `${left}px` }
+                              })() : { top: '0px', left: '0px' })
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={() => {
                                 setActiveMenu(null)
@@ -1090,8 +1388,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                         )}
                       </div>
 
-                      {isActive && (
-                        <div className="space-y-2 mt-2">
+                      <div className="space-y-2 mt-2" style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
                       {/* Компания контакта */}
                       <div className="flex items-center py-1 relative">
                         <div className="w-40 text-sm text-slate-400">Компания</div>
@@ -1115,12 +1412,15 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                                 )
                                 setActiveMenu(null)
                               }}
-                              className="text-white cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
+                              className="context-menu-trigger text-white cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
+                              data-contact-company-name-id={dealContact.id}
                             >
-                              {dealContact.company_id 
-                                ? companies.find(c => c.id === dealContact.company_id)?.name || 'Не найдена'
-                                : 'Не указано'
-                              }
+                              <span data-contact-company-name-trigger={dealContact.id}>
+                                {dealContact.company_id 
+                                  ? companies.find(c => c.id === dealContact.company_id)?.name || 'Не найдена'
+                                  : 'Не указано'
+                                }
+                              </span>
                             </div>
                           ) : (
                             <div className="relative">
@@ -1164,7 +1464,28 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                           )}
                         </div>
                         {activeMenu === `contact-company-${dealContact.id}` && dealContact.company_id && (
-                          <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded shadow-lg py-1 z-10 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                          <div 
+                            className="context-menu fixed bg-slate-700 rounded shadow-xl py-1 z-[100] min-w-[200px] border border-slate-600" 
+                            style={{
+                              ...(typeof window !== 'undefined' ? (() => {
+                                const trigger = document.querySelector(`[data-contact-company-name-trigger="${dealContact.id}"]`)
+                                const rect = trigger?.getBoundingClientRect()
+                                const menuWidth = 220
+                                const menuHeightEstimate = 180
+                                const gap = 6
+                                if (!rect) return { top: '0px', left: '0px' }
+                                const hasSpaceBelow = rect.bottom + gap + menuHeightEstimate <= window.innerHeight
+                                const top = hasSpaceBelow ? (rect.bottom + gap) : Math.max(8, rect.top - menuHeightEstimate - gap)
+                                // Прилегаем к левому краю строки ФИО
+                                let left = rect.left
+                                const maxLeft = window.innerWidth - menuWidth - 8
+                                if (left > maxLeft) left = maxLeft
+                                if (left < 8) left = 8
+                                return { top: `${top}px`, left: `${left}px` }
+                              })() : { top: '0px', left: '0px' })
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <button
                               onClick={() => {
                                 setActiveMenu(null)
@@ -1302,7 +1623,6 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                         </div>
                       </div>
                       </div>
-                      )}
                       </div>
                     </div>
                   )})}
@@ -1434,7 +1754,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
               {/* Компания */}
               <div>
                 {editForm.company_id ? (
-                  <div className="bg-slate-700/30 rounded-lg overflow-hidden" style={{ padding: '10px' }}>
+                  <div className="bg-slate-700/30 rounded-lg overflow-hidden" style={{ padding: '10px' }} data-company-block>
                     <div className="space-y-1">
                     {/* Компания */}
                     <div className="flex items-center py-1 relative">
@@ -1450,7 +1770,8 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                               setCompanySearch(companies.find(c => c.id === editForm.company_id)?.name || '')
                               setActiveMenu(null)
                             }}
-                            className="text-white cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
+                            className="context-menu-trigger text-white cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
+                            data-company-name-trigger
                           >
                             {companies.find(c => c.id === editForm.company_id)?.name || 'Не указано'}
                           </div>
@@ -1507,7 +1828,27 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                       </div>
                       
                       {activeMenu === 'company' && (
-                        <div className="absolute right-0 top-full mt-1 bg-slate-700 rounded shadow-lg py-1 z-10 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                          <div 
+                            className="context-menu fixed bg-slate-700 rounded shadow-xl py-1 z-[100] min-w-[200px] border border-slate-600" 
+                            style={{
+                              ...(typeof window !== 'undefined' ? (() => {
+                                const trigger = document.querySelector('[data-company-name-trigger]') as HTMLElement | null
+                                const rect = trigger?.getBoundingClientRect()
+                                const menuWidth = 220
+                                const menuHeightEstimate = 160
+                                const gap = 6
+                                if (!rect) return { top: '0px', left: '0px' }
+                                const hasSpaceBelow = rect.bottom + gap + menuHeightEstimate <= window.innerHeight
+                                const top = hasSpaceBelow ? (rect.bottom + gap) : Math.max(8, rect.top - menuHeightEstimate - gap)
+                                let left = rect.left
+                                const maxLeft = window.innerWidth - menuWidth - 8
+                                if (left > maxLeft) left = maxLeft
+                                if (left < 8) left = 8
+                                return { top: `${top}px`, left: `${left}px` }
+                              })() : { top: '0px', left: '0px' })
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                           <button
                             onClick={() => {
                               setActiveMenu(null)
@@ -2068,14 +2409,17 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
             </button>
             <button
               onClick={handleSave}
-              disabled={!hasChanges}
-              className={`px-4 py-2 rounded transition-colors ${
-                hasChanges
+              disabled={!hasChanges || saveSuccess}
+              className={`px-4 py-2 rounded relative overflow-hidden transition-colors ${
+                hasChanges && !saveSuccess
                   ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : saveSuccess
+                    ? 'bg-green-700 text-white'
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
               }`}
             >
-              Сохранить
+              <span className={`block transition-opacity duration-200 ${saveSuccess ? 'opacity-0' : 'opacity-100'}`}>Сохранить</span>
+              <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${saveSuccess ? 'opacity-100' : 'opacity-0'}`}>✓ Сохранено</span>
             </button>
           </div>
         </div>
@@ -2147,7 +2491,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
 
       {/* Chat Panel - Separate from modal, to the right */}
       <div 
-        className="fixed top-0 bottom-0 bg-slate-800 overflow-hidden flex flex-col z-20 border-l border-slate-700"
+        className="fixed top-0 bottom-0 bg-slate-800 overflow-hidden flex flex-col z-20 border-l border-slate-700 pt-11"
         style={{ 
           left: '660px', // 80px sidebar + 580px modal
           right: '0',
@@ -2156,10 +2500,15 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search and Filters Header */}
-        <div className="relative border-b border-slate-700 bg-slate-800">
-          {/* Search Bar */}
-          <div className="px-3 py-2 flex items-center gap-2 cursor-pointer" onClick={() => setShowChatFilters(!showChatFilters)}>
+        {/* Search Header (fixed at top of chat panel) */}
+        <div className="absolute top-0 left-0 right-0 z-50 border-b border-slate-700 bg-slate-800">
+          {/* Search Bar - кликабельное поле */}
+          <div 
+            className="px-3 py-2 flex items-center gap-2 cursor-pointer search-filter-toggle z-50" 
+            onClick={() => {
+              if (!showChatFilters) setShowChatFilters(true)
+            }}
+          >
             <div className="flex-1 flex items-center gap-2 text-slate-400 text-sm px-3 py-1.5">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -2179,32 +2528,14 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
             </button>
           </div>
 
-          {/* Active Filter Tags */}
-          {(chatFilter !== 'all' || chatMessagesEnabled || relatedObjectsEnabled || selectedEventTypes.length > 0) && (
-            <div className="px-3 pb-2 flex flex-wrap gap-2">
-              {chatFilter === 'chats-only' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white text-xs rounded">
-                  Только чаты
-                  <button onClick={() => setChatFilter('all')} className="hover:text-green-200">✕</button>
-                </span>
-              )}
-              {chatFilter === 'chats-with-clients' && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-600 text-white text-xs rounded">
-                  Только чаты с клиентами
-                  <button onClick={() => setChatFilter('all')} className="hover:text-green-200">✕</button>
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Filter Panel - Overlay */}
+          {/* Filter Panel - Overlay (открывается по клику) */}
           {showChatFilters && (
             <div 
-              className="absolute top-full left-0 right-0 bg-slate-800 border-b border-slate-700 shadow-lg z-40 flex chat-filters-panel"
+              className={`absolute top-full left-0 right-0 bg-slate-800 border-b border-slate-700 shadow-lg z-10 flex chat-filters-panel ${isClosingFilters ? 'animate-filters-close' : 'animate-filters-open'}`}
               style={{ maxHeight: '400px' }}
             >
               {/* Левая панель - Быстрые фильтры */}
-              <div className="w-60 border-r border-slate-700 p-3 space-y-1">
+              <div className="w-52 border-r border-slate-700 p-3 space-y-1">
                 <button
                   onClick={() => setChatFilter('all')}
                   className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
@@ -2232,10 +2563,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
               </div>
 
               {/* Правая панель - Детальные фильтры */}
-              <div className="flex-1 p-3 space-y-3">
+              <div className="w-64 p-3 space-y-2">
                 {/* Блок 1: Сообщения чатов */}
                 <div className="relative">
-                  <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={chatMessagesEnabled}
@@ -2247,10 +2578,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                   </label>
                   
                   {chatMessagesEnabled && (
-                    <div className="mt-2 ml-5">
+                    <div className="mt-1.5 ml-5">
                       <button
                         onClick={() => setShowChatMessagesDropdown(!showChatMessagesDropdown)}
-                        className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
+                        className="w-full flex items-center justify-between px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
                       >
                         <span>{chatMessagesType === 'all' ? 'Все' : chatMessagesType === 'with-clients' ? 'С клиентами' : 'Внутренние'}</span>
                         <span className="text-slate-400">{showChatMessagesDropdown ? '▲' : '▼'}</span>
@@ -2284,7 +2615,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
 
                 {/* Блок 2: Связанные объекты */}
                 <div className="relative">
-                  <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                  <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={relatedObjectsEnabled}
@@ -2296,10 +2627,10 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                   </label>
                   
                   {relatedObjectsEnabled && (
-                    <div className="mt-2 ml-5">
+                    <div className="mt-1.5 ml-5">
                       <button
                         onClick={() => setShowRelatedObjectsDropdown(!showRelatedObjectsDropdown)}
-                        className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
+                        className="w-full flex items-center justify-between px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
                       >
                         <span>Выбрано: {selectedRelatedObjects.length || 'Все'}</span>
                         <span className="text-slate-400">{showRelatedObjectsDropdown ? '▲' : '▼'}</span>
@@ -2363,7 +2694,7 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                 <div className="relative">
                   <button
                     onClick={() => setShowEventTypesDropdown(!showEventTypesDropdown)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-white transition-colors"
                   >
                     <span className="text-slate-300">Типы событий:</span>
                     <span className="text-slate-400">{showEventTypesDropdown ? '▲' : '▼'}</span>
@@ -2427,6 +2758,25 @@ export default function DealModal({ dealId, onClose }: DealModalProps) {
                   )}
                 </div>
               </div>
+
+              {/* Блок с текстом про тариф - отдельно справа */}
+              {!hasSearchAccess && (
+                <div className="w-80 p-4 flex items-start justify-center">
+                  <div className="p-3 bg-slate-700/50 rounded text-xs text-slate-300 text-center">
+                    Поиск по сообщениям и событиям доступен в тарифе{' '}
+                    <a 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        alert('Переход на страницу тарифов')
+                      }}
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      «Профессиональный»
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

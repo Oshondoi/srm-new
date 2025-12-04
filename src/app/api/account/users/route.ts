@@ -9,7 +9,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Получаем всех пользователей аккаунта
+    // Получаем всех пользователей аккаунта (сотрудников)
     const result = await query(
       `SELECT id, email, full_name, role 
        FROM users 

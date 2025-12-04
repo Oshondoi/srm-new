@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
     // Deals by stage
     const dealsByStageResult = await query(`
-      SELECT s.name as stage_name, COUNT(d.id) as count
+      SELECT s.id as stage_id, s.name as stage_name, COUNT(d.id) as count
       FROM stages s
       INNER JOIN pipelines p ON s.pipeline_id = p.id
       LEFT JOIN deals d ON d.stage_id = s.id AND d.account_id = $1

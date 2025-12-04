@@ -13,7 +13,7 @@ export interface User {
 
 export interface JWTPayload {
   userId: string
-  accountId: string
+  accountId?: string // Опционально для обратной совместимости
   email: string
 }
 
@@ -36,9 +36,11 @@ export function getUserFromRequest(request: Request): { userId: string; accountI
     const token = authCookie.split('=')[1]
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
     
+    // В текущей схеме БД каждый user = отдельный account
+    // Если нет accountId в токене, используем userId
     return {
       userId: decoded.userId,
-      accountId: decoded.accountId
+      accountId: decoded.accountId || decoded.userId
     }
   } catch (error) {
     console.error('Token verification error:', error)

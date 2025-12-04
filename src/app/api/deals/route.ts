@@ -59,17 +59,29 @@ export async function POST(request: Request) {
     }
     
     // New deal creation
-    const { title, value, currency, company_id, pipeline_id, stage_id, closed } = body
+    const { title, value, currency, company_id, pipeline_id, stage_id, closed, responsible_user_id } = body
     
-    if (!title || !pipeline_id || !stage_id) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    // pipeline_id и stage_id обязательны (приходят из фронтенда с активной воронкой)
+    if (!pipeline_id || !stage_id) {
+      return NextResponse.json({ error: 'Pipeline and stage are required' }, { status: 400 })
     }
+    
+    // Используем переданный responsible_user_id или текущего пользователя
+    const finalResponsibleUserId = responsible_user_id || user.userId
+    
+    // Генерируем название как "Сделка #ID"
+    const countResult = await query(
+      'SELECT COUNT(*) as count FROM deals WHERE account_id = $1',
+      [user.accountId]
+    )
+    const dealNumber = parseInt(countResult.rows[0].count) + 1
+    const finalTitle = title || `Сделка #${dealNumber}`
 
     const result = await query(
       `INSERT INTO deals (account_id, responsible_user_id, title, budget, currency, company_id, pipeline_id, stage_id, is_closed)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [user.accountId, user.userId, title, value || 0, currency || 'RUB', company_id || null, pipeline_id, stage_id, closed || false]
+      [user.accountId, finalResponsibleUserId, finalTitle, value || 0, currency || 'RUB', company_id || null, pipeline_id, stage_id, closed || false]
     )
     
     const newDeal = result.rows[0]

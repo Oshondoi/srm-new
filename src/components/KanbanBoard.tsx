@@ -121,6 +121,36 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
     load()
   }, [pipelineId])
 
+  // Слушаем обновления сделки из модалки (смена этапа после сохранения)
+  useEffect(() => {
+    function handleDealUpdated(e: any) {
+      const { dealId, stage_id } = e.detail || {}
+      if (!dealId || !stage_id) return
+      setDealsByStage(prev => {
+        // Найдём текущий этап сделки
+        let currentStage: string | null = null
+        let movingDeal: Deal | null = null
+        for (const [sid, list] of Object.entries(prev)) {
+          const found = list.find(d => d.id === dealId)
+          if (found) {
+            currentStage = sid
+            movingDeal = found
+            break
+          }
+        }
+        if (!movingDeal || currentStage === stage_id) return prev
+        const copy: Record<string, Deal[]> = {}
+        for (const k of Object.keys(prev)) copy[k] = [...prev[k]]
+        copy[currentStage!] = copy[currentStage!].filter(d => d.id !== dealId)
+        if (!copy[stage_id]) copy[stage_id] = []
+        copy[stage_id] = [...copy[stage_id], { ...movingDeal, stage_id }]
+        return copy
+      })
+    }
+    window.addEventListener('deal-updated', handleDealUpdated)
+    return () => window.removeEventListener('deal-updated', handleDealUpdated)
+  }, [])
+
   async function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setActiveDeal(null)

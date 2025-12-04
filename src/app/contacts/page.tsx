@@ -31,8 +31,27 @@ export default function ContactsPage() {
         fetch('/api/contacts'),
         fetch('/api/companies')
       ])
-      const contactsData = await contactsRes.json()
-      const companiesData = await companiesRes.json()
+
+      // Безопасный парсинг JSON чтобы избежать "Unexpected end of JSON input"
+      async function safeJson(res: Response) {
+        try {
+          if (!res.ok) {
+            // Попытка прочитать текст ошибки
+            const txt = await res.text()
+            console.error('Ошибка ответа', res.status, txt)
+            return []
+          }
+          const txt = await res.text()
+          if (!txt) return []
+          return JSON.parse(txt)
+        } catch (err) {
+          console.error('JSON parse error', err)
+          return []
+        }
+      }
+
+      const contactsData = await safeJson(contactsRes)
+      const companiesData = await safeJson(companiesRes)
       setContacts(Array.isArray(contactsData) ? contactsData : [])
       setCompanies(Array.isArray(companiesData) ? companiesData : [])
     } catch (e) {
@@ -95,20 +114,39 @@ export default function ContactsPage() {
     try {
       if (editingContact) {
         // Update
+        // Нормализация company_id чтобы пустая строка не мешала
+        const payload = { ...formData, company_id: formData.company_id || '' }
         const res = await fetch(`/api/contacts/${editingContact.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         })
-        if (!res.ok) throw new Error('Failed to update contact')
+        if (!res.ok) {
+          let reason = 'Failed to update contact'
+          try {
+            const txt = await res.text()
+            if (txt) {
+              reason += `: ${txt}`
+            }
+          } catch {}
+          throw new Error(reason)
+        }
       } else {
         // Create
+        const payload = { ...formData, company_id: formData.company_id || '' }
         const res = await fetch('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         })
-        if (!res.ok) throw new Error('Failed to create contact')
+        if (!res.ok) {
+          let reason = 'Failed to create contact'
+            try {
+              const txt = await res.text()
+              if (txt) reason += `: ${txt}`
+            } catch {}
+          throw new Error(reason)
+        }
       }
 
       setShowModal(false)

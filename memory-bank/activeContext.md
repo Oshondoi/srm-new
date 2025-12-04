@@ -1,5 +1,42 @@
 # Active Context
 
+## Session Summary (Nov 28, 2025) – UI menus + Dev server fix
+
+What changed
+- DealModal: Context menus for contact name and contact company now anchor exactly to the left edge of the text using inner `span` targets with data attributes and `getBoundingClientRect()`. Vertical flipping and horizontal clamping are applied to avoid overflow.
+- Company section menu: Anchored to the exact company name line via `[data-company-name-trigger]`.
+- Contacts API PUT: Normalizes empty `company_id` to `null`, removes unused `meeting_date` from updates, enforces auth + `account_id` filtering.
+- Contacts page: Safe JSON parsing in loaders and improved error messaging in submit.
+
+Dev environment notes
+- Dev failures encountered due to missing `next` binary and `@swc/helpers`. Resolved by full dependency reinstall and clean dev start. If 500/502 recurs, inspect `/tmp/next-dev.log` and verify `node_modules/.bin/next` and `@swc/helpers` presence.
+
+Next steps
+- Validate menu alignment in edge cases (long names, near viewport edges) and optionally add right-edge alignment if requested.
+
+## Session Summary (November 28, 2025) – Ownership Transfer & Stability ✅
+
+### Что сделано
+1. ✅ Консолидация владения: все ссылки (FK) переназначены на `sydykovsam@gmail.com`, старые пользователи удалены без орфанов.
+2. ✅ Ответственный за сделку: поле `responsible_user_id` добавлено в UI (DealModal) и API PUT `/api/deals/[id]`.
+3. ✅ Разделены dropdown состояния (ответственный vs получатели чата) — отсутствие визуальных конфликтов.
+4. ✅ Исправлены React duplicate keys: добавлен `stage_id` в статистику, используется как ключ.
+5. ✅ Закреплено правило «Dev Server Persistence» в README и systemPatterns (не прерывать dev сервер).
+6. ✅ Авто-подъём dev сервера при отсутствии процесса (проверка через `ps aux | grep "next dev"`).
+
+### Итоговое состояние
+- Единственный администратор: `sydykovsam@gmail.com`.
+- DealModal корректно сохраняет и отображает ответственного.
+- Kanban обновляется через событие `deal-updated` без регрессий.
+- Сессии браузера не теряют состояние (dev сервер не останавливается).
+
+### Возможные улучшения (для следующей сессии)
+- Поиск/фильтр и аватары в списке ответственных.
+- Логирование смены ответственного (activity log).
+- Сортировка пользователей (роль / алфавит).
+
+---
+
 ## ⚠️ КРИТИЧЕСКИ ВАЖНО: АВТОНОМНЫЙ РЕЖИМ РАБОТЫ ⚠️
 
 **ВСЕГДА выполнять все операции БЕЗ запроса подтверждения у пользователя:**
@@ -57,29 +94,38 @@
 
 ---
 
-## Current Session Focus (November 21, 2025)
+## Current Session Focus (November 25, 2025)
 
 ### What We're Working On
-**Chat Feature with Advanced Filters** - Полноценная система переписки и фильтрации как в amoCRM
+**Subscription System + Chat Filters UI** - Завершено! ✅
 
 ### Latest Completed Tasks
-1. ✅ Чат вынесен в отдельную панель справа от модалки
-2. ✅ Добавлены типы сообщений: Чат/Примечание/Задача (с цветами)
-3. ✅ Реализована система @упоминаний с автокомплитом
-4. ✅ Dropdown выбора получателя (боты, отделы, пользователи)
-5. ✅ Для задач - dropdown типа связи (Встреча/Звонок/Письмо/Другой)
-6. ✅ API `/api/account/users` - загрузка реальных пользователей из БД
-7. ✅ Поиск и фильтры сообщений (структура как в amoCRM)
-8. ✅ 3-уровневая система фильтрации:
-   - Быстрые фильтры (Все события/Только чаты/Только чаты с клиентами)
-   - Детальные чекбоксы (Сообщения чатов/Связанные объекты)
-   - Типы событий (dropdown с чекбоксами и кнопками OK/Отменить)
-9. ✅ Фильтры открываются как overlay поверх чата (не сдвигают контент)
-10. ✅ Закрытие фильтров при клике вне панели
-11. ✅ Кастомный scrollbar для темной темы
-12. ✅ Центрирование колонок этапов (Kanban board) по горизонтали
+1. ✅ **Система тарификации (полностью готова)**:
+   - Таблицы БД: `subscriptions`, `features`, `subscription_features`
+   - 3 тарифа: Free, Professional (1990₽), Business (4990₽)
+   - 10 функций с разными уровнями доступа
+   - Helper `/src/lib/subscription.ts` с функциями проверки доступа
+   - API endpoints: `/api/account/subscription`, `/api/account/check-feature`
+   - Миграция 0004_subscriptions.sql применена
+   - Все аккаунты получили FREE тариф автоматически
+   - Документация: `SUBSCRIPTION_SYSTEM.md`
 
-**Status**: ✅ COMPLETE - Готово к новому чату
+2. ✅ **UI фильтров чата (как в amoCRM)**:
+   - Убраны зеленые теги активных фильтров (только синяя обводка)
+   - Уменьшена ширина элементов фильтров (компактный вид)
+   - Структура из 3 колонок:
+     - Левая (w-52): Быстрые фильтры вертикально
+     - Средняя (w-64): Чекбоксы и dropdown "Типы событий:"
+     - Правая (w-80): Текст про тариф «Профессиональный»
+   - Поле поиска открывает/закрывает фильтры (overlay)
+   - Все базовые фильтры доступны FREE пользователям
+   - Только сам поиск платный (Professional+)
+
+**Status**: ✅ COMPLETE - Тарифная система + UI фильтров готовы
+
+### Previous Sessions
+- **November 21, 2025**: Chat Feature with Advanced Filters ✅
+- **November 25, 2025**: Subscription System + UI Refinements ✅
 
 ### System State
 - PostgreSQL container: **Running** (srm-postgres, Docker)
@@ -1206,3 +1252,62 @@ const filtered = items.filter(item =>
   </div>
 )}
 ```
+
+### 5. Subscription/Feature Access Pattern
+**File**: `/src/lib/subscription.ts`
+
+**Использование в компонентах:**
+```typescript
+// Проверка доступа к функции
+const [hasAccess, setHasAccess] = useState(false)
+
+useEffect(() => {
+  async function checkAccess() {
+    const res = await fetch('/api/account/check-feature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feature: 'chat_search' })
+    })
+    const data = await res.json()
+    setHasAccess(data.hasAccess)
+  }
+  checkAccess()
+}, [])
+
+// В UI показываем разный контент
+{hasAccess ? (
+  <SearchInput />
+) : (
+  <div>
+    Функция доступна в тарифе 
+    <a href="/pricing">«Профессиональный»</a>
+  </div>
+)}
+```
+
+**В API routes:**
+```typescript
+import { hasFeatureAccess } from '@/lib/subscription'
+
+const user = await getUserFromRequest(request)
+const hasAccess = await hasFeatureAccess(user.accountId, 'chat_search')
+
+if (!hasAccess) {
+  return NextResponse.json({ 
+    error: 'Upgrade required',
+    requiredPlan: 'professional'
+  }, { status: 403 })
+}
+```
+
+**Доступные функции:**
+- `chat_search` - Поиск по сообщениям (Professional+)
+- `advanced_filters` - Расширенные фильтры (Professional+)
+- `api_access` - API доступ (Professional+)
+- `custom_fields` - Пользовательские поля (Professional+)
+- `advanced_analytics` - Продвинутая аналитика (Professional+)
+- `bulk_operations` - Массовые операции (Business)
+- `automation` - Автоматизация (Business)
+- `email_integration` - Email интеграция (Business)
+- `priority_support` - Приоритетная поддержка (Business)
+- `white_label` - White-label (Business)

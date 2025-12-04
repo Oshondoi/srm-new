@@ -144,7 +144,7 @@ export default function Page() {
           <h2 className="text-xl font-bold text-white mb-4">Сделки по этапам</h2>
           <div className="space-y-3">
             {stats.dealsByStage?.map((stage: any) => (
-              <div key={stage.stage_name}>
+              <div key={stage.stage_id || stage.stage_name}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-slate-300">{stage.stage_name}</span>
                   <span className="text-white font-semibold">{stage.count}</span>

@@ -91,3 +91,33 @@ export const activity_logs = pgTable('activity_logs', {
   payload: text('payload'),
   created_at: timestamp('created_at').defaultNow().notNull()
 })
+
+// === SUBSCRIPTION SYSTEM (Тарифная система) ===
+
+// Тарифные планы
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  account_id: uuid('account_id').notNull(), // привязка к аккаунту
+  plan_name: varchar('plan_name', { length: 64 }).notNull(), // 'free', 'professional', 'business'
+  status: varchar('status', { length: 32 }).notNull().default('active'), // 'active', 'cancelled', 'expired'
+  started_at: timestamp('started_at').defaultNow().notNull(),
+  expires_at: timestamp('expires_at'), // null = бессрочно (для free)
+  created_at: timestamp('created_at').defaultNow().notNull()
+})
+
+// Функции/возможности системы
+export const features = pgTable('features', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 128 }).notNull().unique(), // 'chat_search', 'advanced_analytics', 'api_access'
+  display_name: varchar('display_name', { length: 255 }).notNull(), // 'Поиск по сообщениям'
+  description: text('description'), // описание функции
+  created_at: timestamp('created_at').defaultNow().notNull()
+})
+
+// Связь тарифов и функций (что доступно в каком тарифе)
+export const subscription_features = pgTable('subscription_features', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  plan_name: varchar('plan_name', { length: 64 }).notNull(), // 'free', 'professional', 'business'
+  feature_name: varchar('feature_name', { length: 128 }).notNull(), // ссылка на features.name
+  created_at: timestamp('created_at').defaultNow().notNull()
+})

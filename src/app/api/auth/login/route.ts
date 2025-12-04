@@ -44,9 +44,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Create JWT token
+    // Create JWT token with userId and accountId
     const token = jwt.sign(
-      { userId: user.id, accountId: user.account_id, email: user.email },
+      { 
+        userId: user.id,
+        accountId: user.account_id,
+        email: user.email 
+      },
       JWT_SECRET,
       { expiresIn: '30d' }
     )

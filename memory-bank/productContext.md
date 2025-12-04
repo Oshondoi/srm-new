@@ -81,3 +81,4 @@ Users familiar with amoCRM should feel at home. Every interaction pattern, visua
 3. **Transactional Edits**: Local state buffer + pending changes object prevents premature saves
 4. **Visual Separation**: Border between sections + spacing more effective than background colors alone
 5. **Conditional Display**: `{field && (<div>...)}` keeps interface clean and focused
+6. **Precise Anchoring**: Menus should snap to the exact text start of the triggering line (ФИО, компания) for predictable UX.

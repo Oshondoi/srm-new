@@ -18,7 +18,11 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn']
     } : false,
-  }
+  },
+
+  // Ensure static assets load correctly behind proxies (GitHub Codespaces/App.dev)
+  // Set assetPrefix from environment when deployed behind a proxy domain
+  assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || undefined
 }
 
 module.exports = nextConfig

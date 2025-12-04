@@ -18,7 +18,6 @@ export async function GET(request: Request) {
             'id', s.id,
             'name', s.name,
             'position', s.position,
-            'color', s.color,
             'pipeline_id', s.pipeline_id,
             'deals_count', COALESCE(deal_counts.count, 0)
           ) ORDER BY s.position
@@ -57,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Pipeline name is required' }, { status: 400 })
     }
 
-    // Создаём воронку - триггер автоматически создаст 3 дефолтных этапа
+    // Создаём воронку - триггер автоматически создаст дефолтные этапы
     const result = await query(
       `INSERT INTO pipelines (account_id, name, is_default)
        VALUES ($1, $2, false)
