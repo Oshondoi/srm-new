@@ -1,6 +1,29 @@
 # Progress Tracking
 
-## Dec 6, 2025 — Supabase Reset & Account Flow
+## Dec 6, 2025 — Multi-Tenancy Bug Fix + Deal Display Fix ✅
+
+**Critical Bug Fixed: Wrong stage_id for all deals**
+- Problem: All deals referenced non-existent stage_id from old/wrong account
+- Symptom: Kanban showed deal cards but empty (no title, no budget). Modals loaded as skeleton only.
+- Root Cause: When migrating data between accounts, stage_id wasn't updated to new account's stages
+- Solution: Automated fix for ALL accounts - each deal assigned to first stage of its account's pipeline
+- Result: All 6 deals (4 in Admin User + 2 in Elestet) now display correctly in kanban
+
+**API Route Fixes for Next.js 15:**
+- Fixed: `/api/deals/[id]/full` - SQL query used non-existent `ru.first_name` (should be `ru.full_name`)
+- Fixed: `/api/deals/[id]/full` and `/api/pipelines/[id]/deals` - params now async Promise
+- Next.js 15 requires: `{ params }: { params: Promise<{ id: string }> }` + `await params`
+
+**Files Changed:**
+- `src/app/api/deals/[id]/full/route.ts`
+- `src/app/api/pipelines/[id]/deals/route.ts`
+
+**Git:** `56f1f2a` - "fix: исправлен stage_id для всех сделок во всех аккаунтах"
+
+**Status:** ✅ Deal display fully working. Kanban + modals load correctly.
+
+---
+
 ## Dec 6, 2025 — Soft Delete System & Registration Fix ✅
 
 **Registration Issue Fixed:**
