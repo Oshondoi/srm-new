@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     // Get user data
     const result = await query(
-      'SELECT id, email, full_name, role, created_at FROM users WHERE id = $1',
+      'SELECT id, email, full_name, role, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
       [decoded.userId]
     )
 

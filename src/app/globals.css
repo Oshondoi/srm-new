@@ -136,7 +136,7 @@ body {
 /* View Transitions API configuration */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 0.3s;
+  animation-duration: 0.2s;
   animation-timing-function: ease-in-out;
 }
 
@@ -160,18 +160,18 @@ body {
 }
 
 .animate-filters-open {
-  animation: filtersSlideDown 0.3s ease-out;
+  animation: filtersSlideDown 0.2s ease-out;
 }
 
 .animate-filters-close {
-  animation: filtersSlideUp 0.3s ease-in;
+  animation: filtersSlideUp 0.2s ease-in;
 }
 
 /* Deal Contact Accordion - УНИКАЛЬНЫЕ ИЗОЛИРОВАННЫЕ СТИЛИ */
 /* Используется data-атрибут для максимальной изоляции от других компонентов */
 [data-deal-contact-accordion] {
   /* Базовые стили аккордеона контактов */
-  transition: height 0.5s ease-in-out, background-color 0.3s ease;
+  transition: height 0.3s ease-in-out, background-color 0.2s ease;
 }
 
 /* Свернутое состояние */
@@ -184,12 +184,31 @@ body {
   /* Высота контролируется через inline style (expandedHeight) */
 }
 
-/* Hover эффект только для свернутых карточек */
-[data-deal-contact-accordion].deal-contact-collapsed:hover {
+/* Hover эффект только для свернутых СУЩЕСТВУЮЩИХ карточек */
+/* data-is-existing-contact="true" - настоящие контакты из БД */
+[data-deal-contact-accordion][data-is-existing-contact="true"].deal-contact-collapsed:hover {
   background-color: rgba(51, 65, 85, 0.5) !important; /* slate-700/50 */
+}
+
+/* ЗАПРЕТ hover для формы создания нового контакта */
+/* data-is-new-contact="true" - форма "Добавить контакт" */
+[data-deal-contact-accordion][data-is-new-contact="true"]:hover {
+  background-color: transparent !important; /* Никакого hover эффекта */
 }
 
 /* Плавный переход для всех изменений высоты */
 [data-deal-contact-accordion] > div {
-  transition: opacity 0.3s ease-in-out;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Deal Company Form - ИЗОЛИРОВАННЫЕ СТИЛИ ДЛЯ ФОРМЫ СОЗДАНИЯ КОМПАНИИ */
+/* Используется data-атрибут для изоляции от аккордеона контактов */
+/* Анимация ТОЧНО как у контактов - только transition height */
+[data-deal-company-form] {
+  transition: height 0.3s ease-in-out;
+}
+
+/* ЗАПРЕТ hover для формы создания компании */
+[data-deal-company-form][data-is-new-company="true"]:hover {
+  background-color: transparent !important;
 }

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       FROM tasks t
       LEFT JOIN deals d ON t.deal_id = d.id
       LEFT JOIN users u ON t.assigned_to = u.id
-      WHERE 1=1
+      WHERE t.deleted_at IS NULL
     `
     const params: any[] = []
     let paramCount = 0

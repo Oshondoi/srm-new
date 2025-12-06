@@ -19,6 +19,7 @@ export async function GET(request: Request) {
             'name', s.name,
             'position', s.position,
             'pipeline_id', s.pipeline_id,
+            'is_visible', COALESCE(s.is_visible, true),
             'deals_count', COALESCE(deal_counts.count, 0)
           ) ORDER BY s.position
         ) FILTER (WHERE s.id IS NOT NULL) as stages

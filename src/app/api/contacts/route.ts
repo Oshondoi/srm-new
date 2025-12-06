@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       `SELECT c.*, comp.name as company_name 
        FROM contacts c
        LEFT JOIN companies comp ON c.company_id = comp.id
-       WHERE c.account_id = $1
+       WHERE c.account_id = $1 AND c.deleted_at IS NULL
        ORDER BY c.first_name, c.last_name
        LIMIT $2 OFFSET $3`,
       [user.accountId, limit, offset]

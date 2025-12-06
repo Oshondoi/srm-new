@@ -1,5 +1,40 @@
 # Product Context
 
+## ⚠️ ВАЖНАЯ ТЕРМИНОЛОГИЯ
+
+**Название системы: Ошондой CRM**
+
+**Два понятия "пользователь":**
+
+1. **КЛИЕНТ (Customer/Account)** = Юзер Ошондой CRM
+   - Тот, кто использует систему Ошондой CRM как продукт
+   - Регистрируется и создаёт свой аккаунт (организацию)
+   - В БД = `accounts` table
+   - **Самый верх иерархии**
+
+2. **СОТРУДНИК (Employee/User)** = Пользователь внутри аккаунта
+   - Работник организации, который работает в CRM
+   - Имеет email, пароль, роль (admin/manager/user)
+   - В БД = `users` table с `account_id`
+   - **Принадлежит аккаунту**
+
+**Иерархия (каскадное удаление):**
+```
+ACCOUNT (клиент Ошондой CRM)
+  └── При удалении аккаунта удаляется ВСЁ:
+      ├── USERS (сотрудники)
+      ├── COMPANIES (компании)
+      ├── CONTACTS (контакты)
+      ├── PIPELINES → STAGES → DEALS
+      ├── TASKS
+      ├── NOTES
+      └── ACTIVITY_LOGS
+```
+
+Все данные принадлежат аккаунту. Удаление аккаунта = полная очистка всех его данных.
+
+---
+
 ## Why This Exists
 This is a complete amoCRM clone - a CRM (Customer Relationship Management) system for managing sales pipelines, customer relationships, and business processes. User explicitly stated: **"ТОЧНУЮ КОПИЮ" of amoCRM**.
 

@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
 import { query } from '../../../../lib/db'
+import { getUserFromRequest } from '../../../../lib/auth'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { id: dealId } = await params
 
-    // Get deal with related data
+    // Get deal with related data - проверяем account_id для безопасности
     const dealResult = await query(
       `SELECT d.*, 
         c.name as company_name,
@@ -18,8 +24,8 @@ export async function GET(
       LEFT JOIN companies c ON d.company_id = c.id
       LEFT JOIN pipelines p ON d.pipeline_id = p.id
       LEFT JOIN stages s ON d.stage_id = s.id
-      WHERE d.id = $1`,
-      [dealId]
+      WHERE d.id = $1 AND d.account_id = $2`,
+      [dealId, user.accountId]
     )
 
     if (dealResult.rows.length === 0) {
@@ -83,12 +89,17 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { id: dealId } = await params
     const body = await request.json()
     
     const { title, value, currency, company_id, closed, stage_id, responsible_user_id } = body
 
-    await query(
+    const result = await query(
         `UPDATE deals 
        SET title = COALESCE($1, title),
            budget = COALESCE($2, budget),
@@ -97,9 +108,14 @@ export async function PUT(
            is_closed = COALESCE($5, is_closed),
            stage_id = COALESCE($6, stage_id),
            responsible_user_id = COALESCE($7, responsible_user_id)
-         WHERE id = $8`,
-        [title, value, currency, company_id || null, closed, stage_id || null, responsible_user_id || null, dealId]
+         WHERE id = $8 AND account_id = $9
+         RETURNING *`,
+        [title, value, currency, company_id || null, closed, stage_id || null, responsible_user_id || null, dealId, user.accountId]
     )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
@@ -113,8 +129,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: dealId } = await params
-    await query('DELETE FROM deals WHERE id = $1', [dealId])
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+    const result = await query(
+      'UPDATE deals SET deleted_at = NOW() WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL RETURNING id',
+      [id, user.accountId]
+    )
+    
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
+    }
+    
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('API /api/deals/[id] DELETE error', err)

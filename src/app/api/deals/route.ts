@@ -15,16 +15,22 @@ export async function GET(request: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '1000')
     const offset = parseInt(url.searchParams.get('offset') || '0')
 
-    let sql = 'SELECT * FROM deals WHERE account_id = $1'
+    let sql = `SELECT 
+      d.id, d.title, d.stage_id, d.budget, d.currency, d.company_id, 
+      d.responsible_user_id, d.created_at, d.updated_at, d.is_closed,
+      c.name as company_name
+    FROM deals d
+    LEFT JOIN companies c ON c.id = d.company_id
+    WHERE d.account_id = $1 AND d.deleted_at IS NULL`
     const params: any[] = [user.accountId]
     
     if (pipelineId) {
-      sql += ' AND pipeline_id = $2'
+      sql += ' AND d.pipeline_id = $2'
       params.push(pipelineId)
     }
     
     params.push(limit, offset)
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`
+    sql += ` ORDER BY d.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`
 
     const result = await query(sql, params)
     

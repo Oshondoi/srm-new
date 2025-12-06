@@ -110,9 +110,39 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     
     // Загружаем только критичные данные при открытии
     if (!isNewDeal) {
-      loadDeal()
-      loadDealContacts()
+      // ОДИН запрос вместо 5 - получаем всё сразу
+      fetch(`/api/deals/${dealId}/full`)
+        .then(async res => {
+          // Безопасная обработка статусов: 200 → данные, 401/404/500 → пустые структуры
+          if (!res.ok) {
+            console.warn(`Deal full API non-200: ${res.status}`)
+            return { deal: null, contacts: [], stages: [], users: [] }
+          }
+          return res.json()
+        })
+        .then(data => {
+          console.log('Deal data loaded:', data)
+          setDeal(data.deal || null)
+          setDealContacts(data.contacts || [])
+          setStages(data.stages || [])
+          setAccountUsers(data.users || [])
+        })
+        .catch(e => {
+          console.error('Failed to load deal data:', e)
+          // Страховка: заполняем пустыми структурами, чтобы UI не был пустым
+          setDeal(null)
+          setDealContacts([])
+          setStages([])
+          setAccountUsers([])
+        })
+        .finally(() => {
+          // Гарантируем готовность UI даже при ошибках
+          setIsReady(true)
+        })
+      
       loadChatMessages()
+      loadSubscription()
+      loadReferences() // Для автокомплита (ленивая загрузка)
     } else {
       // Для новой сделки инициализируем пустую форму с активной воронкой
       setDeal(null)
@@ -144,11 +174,11 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         .catch(e => console.error('Failed to load pipelines:', e))
       
       setDealContacts([])
+      loadAccountUsers()
+      loadSubscription()
+      loadReferences()
     }
     
-    loadAccountUsers()
-    loadSubscription()
-    loadReferences() // Загружаем компании и контакты для автокомплита и контекстного меню
     // Небольшая задержка перед показом контента (избегаем моргания при анимации открытия)
     setTimeout(() => setIsReady(true), 50)
   }, [dealId, isNewDeal])
@@ -178,7 +208,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     setTimeout(() => {
       setShowChatFilters(false)
       setIsClosingFilters(false)
-    }, 300) // Длительность анимации
+    }, 200) // Длительность анимации
   }
 
   useEffect(() => {
@@ -223,15 +253,20 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
   // Пересчёт высот аккордеона контактов (вынесено в функцию для ручного вызова)
   function recalcContactHeights() {
-    if (dealContacts.length === 0) return
     // Ждем следующий кадр чтобы refs успели обновиться
     requestAnimationFrame(() => {
       const heights: Record<string, number> = {}
+      // Существующие контакты
       for (const contact of dealContacts) {
         const el = contentRefs.current[contact.id]
         if (el) {
           heights[contact.id] = el.scrollHeight + 20 // учёт padding контейнера
         }
+      }
+      // КРИТ КОНТАКТ (форма создания) - часть гармошки
+      const newContactEl = contentRefs.current['new']
+      if (newContactEl) {
+        heights['new'] = newContactEl.scrollHeight + 20
       }
       setContactHeights(heights)
     })
@@ -827,10 +862,10 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     } else {
       // Запускаем анимацию закрытия
       setIsClosing(true)
-      // Через 300мс (длительность анимации) закрываем модалку
+      // Через 200мс (длительность анимации) закрываем модалку
       setTimeout(() => {
         onClose(false)
-      }, 300)
+      }, 200)
     }
   }
   
@@ -838,7 +873,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     setIsClosing(true)
     setTimeout(() => {
       onClose(needsRefresh)
-    }, 300)
+    }, 200)
   }
   
   async function handleCreateCompany(name: string) {
@@ -970,9 +1005,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     <>
       {/* Backdrop только справа от sidebar, z-10 */}
       <div 
-        className="fixed inset-0 bg-black/50 z-10 transition-opacity duration-300 ease-out"
+        className="fixed inset-0 bg-black/50 z-10 transition-opacity duration-200 ease-out"
         style={{ 
-          animation: isClosing ? 'fadeOut 0.3s ease-out' : 'fadeIn 0.3s ease-out',
+          animation: isClosing ? 'fadeOut 0.2s ease-out' : 'fadeIn 0.2s ease-out',
           left: '80px' // Начинается после sidebar
         }}
         onClick={handleBackdropClick}
@@ -985,7 +1020,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           width: '580px',
           left: '80px',
           transform: isClosing ? 'translateX(-100%)' : (isOpening ? 'translateX(-100%)' : 'translateX(0)'),
-          transition: isOpening ? 'none' : 'transform 0.3s ease-out'
+          transition: isOpening ? 'none' : 'transform 0.2s ease-out'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1250,6 +1285,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       key={dealContact.id} 
                       data-deal-contact-accordion
                       data-contact-id={dealContact.id}
+                      data-is-existing-contact="true"
                       onClick={() => {
                         if (!isActive) {
                           setActiveContactIndex(index)
@@ -1627,73 +1663,126 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     </div>
                   )})}
 
-                  {/* Кнопка добавления нового контакта */}
-                  <div className="flex items-center relative" style={{ paddingTop: '4px', paddingBottom: '4px' }}>
-                    <div className="w-40 text-sm text-slate-400">Добавить контакт</div>
-                    <div className="flex-1">
-                      {editingContact !== 'new' ? (
-                        <div 
-                          onClick={() => {
-                            setEditingContact('new')
-                            setContactSearch('')
+                  {/* КРИТ КОНТАКТ - форма создания, часть гармошки, БЕЗ HOVER */}
+                  <div 
+                    data-deal-contact-accordion
+                    data-contact-id="new"
+                    data-is-new-contact="true"
+                    onClick={() => {
+                      const newContactIndex = dealContacts.length
+                      if (activeContactIndex !== newContactIndex) {
+                        setActiveContactIndex(newContactIndex)
+                        setActiveMenu(null)
+                      }
+                    }}
+                    className={`rounded-lg overflow-hidden deal-contact-accordion ${
+                      activeContactIndex !== dealContacts.length 
+                        ? 'cursor-pointer deal-contact-collapsed' 
+                        : 'deal-contact-expanded'
+                    }`}
+                    style={{
+                      height: activeContactIndex === dealContacts.length 
+                        ? (contactHeights['new'] ? `${contactHeights['new']}px` : 'auto') 
+                        : '60px',
+                      padding: '10px'
+                    }}
+                  >
+                    <div ref={(el) => { contentRefs.current['new'] = el }}>
+                    {/* Контакт с кругом + */}
+                    <div className="flex items-center py-2 relative">
+                      <span className="text-2xl text-slate-500 mr-2">⊞</span>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={contactSearch}
+                          onChange={(e) => setContactSearch(e.target.value)}
+                          onFocus={(e) => {
+                            if (!editingContact) {
+                              setEditingContact('new')
+                            }
                           }}
-                          className="text-slate-400 cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
-                        >
-                          Не указано
+                          placeholder="Добавить контакт"
+                          className="w-full text-white bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-1"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Раскрывающиеся поля как у существующей карточки */}
+                    {editingContact === 'new' && activeContactIndex === dealContacts.length && (
+                      <div className="space-y-2 mt-2">
+                        {/* Компания */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Компания</div>
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
                         </div>
-                      ) : (
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={contactSearch}
-                            onChange={(e) => setContactSearch(e.target.value)}
-                            onBlur={() => {
-                              setTimeout(() => {
-                                setEditingContact(null)
-                                setContactSearch('')
-                              }, 200)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && contactSearch.trim()) {
-                                handleCreateContact(contactSearch.trim(), true)
-                              }
-                            }}
-                            autoFocus
-                            placeholder="Введите имя контакта..."
-                            className="w-full text-white bg-slate-700 px-2 py-1 rounded border border-blue-500 outline-none"
-                          />
-                          {contactSearch && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
-                              {contactSearch.trim() && (
-                                <button
-                                  onClick={() => handleCreateContact(contactSearch.trim(), true)}
-                                  className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
-                                >
-                                  + Создать контакт "{contactSearch.trim()}"
-                                </button>
-                              )}
-                              {contacts
-                                .filter(c => {
-                                  const fullName = `${c.first_name} ${c.last_name}`.toLowerCase()
-                                  return fullName.includes(contactSearch.toLowerCase())
-                                })
-                                .map(c => (
-                                  <button
-                                    key={c.id}
-                                    onClick={async () => {
-                                      await addContactToDeal(c.id)
-                                      setEditingContact(null)
-                                      setContactSearch('')
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
-                                  >
-                                    {c.first_name} {c.last_name}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
+
+                        {/* Телефон */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
+                          <div className="flex-1">
+                            <input
+                              type="tel"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
                         </div>
-                      )}
+
+                        {/* Email */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Email раб.</div>
+                          <div className="flex-1">
+                            <input
+                              type="email"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Должность */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Должность</div>
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Бюджет 2 */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Бюджет 2</div>
+                          <div className="flex-1">
+                            <input
+                              type="number"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Встреча */}
+                        <div className="flex items-center py-1">
+                          <div className="w-40 text-sm text-slate-400">Встреча</div>
+                          <div className="flex-1">
+                            <input
+                              type="datetime-local"
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     </div>
                   </div>
                 </div>
@@ -1966,71 +2055,83 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    <div className="flex items-center relative" style={{ paddingTop: '4px', paddingBottom: '4px' }}>
-                      <div className="w-40 text-sm text-slate-400">Добавить компанию</div>
-                      <div className="flex-1">
-                        {!editingCompany ? (
-                          <div 
-                            onClick={() => {
-                              setEditingCompany(true)
-                              setCompanySearch('')
-                            }}
-                            className="text-slate-400 cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
-                          >
-                            Не указано
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={companySearch}
-                              onChange={(e) => setCompanySearch(e.target.value)}
-                              onBlur={() => {
-                                setTimeout(() => {
-                                  setEditingCompany(false)
-                                  setCompanySearch('')
-                                }, 200)
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && companySearch.trim()) {
-                                  handleCreateCompany(companySearch.trim())
-                                }
-                              }}
-                              autoFocus
-                              placeholder="Введите название компании..."
-                              className="w-full text-white bg-slate-700 px-2 py-1 rounded border border-blue-500 outline-none"
-                            />
-                            {companySearch && (
-                              <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
-                                {companySearch.trim() && (
-                                  <button
-                                    onClick={() => handleCreateCompany(companySearch.trim())}
-                                    className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
-                                  >
-                                    + Создать "{companySearch.trim()}"
-                                  </button>
-                                )}
-                                {companies
-                                  .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
-                                  .map(c => (
-                                    <button
-                                      key={c.id}
-                                      onClick={() => {
-                                        updateEditForm('company_id', c.id)
-                                        setEditingCompany(false)
-                                        setCompanySearch('')
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
-                                    >
-                                      {c.name}
-                                    </button>
-                                  ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                  <div 
+                    data-deal-company-form
+                    data-is-new-company="true"
+                    className="rounded-lg overflow-hidden"
+                    style={{ 
+                      padding: '10px',
+                      height: editingCompany ? 'auto' : '60px'
+                    }}
+                  >
+                    {/* Компания с кругом + */}
+                    <div className="space-y-1">
+                      <div className="flex items-center py-1">
+                        <span className="text-2xl text-slate-500 mr-2">⊞</span>
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={companySearch}
+                            onChange={(e) => setCompanySearch(e.target.value)}
+                            onFocus={() => setEditingCompany(true)}
+                            placeholder="Добавить компанию"
+                            className="w-full text-white bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-1"
+                          />
+                        </div>
                       </div>
+
+                      {/* Раскрывающиеся поля как у существующей компании */}
+                      {editingCompany && (
+                        <div className="space-y-2 mt-2">
+                          {/* Раб. тел. */}
+                          <div className="flex items-center py-1">
+                            <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
+                            <div className="flex-1">
+                              <input
+                                type="tel"
+                                placeholder="..."
+                                className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Email раб. */}
+                          <div className="flex items-center py-1">
+                            <div className="w-40 text-sm text-slate-400">Email раб.</div>
+                            <div className="flex-1">
+                              <input
+                                type="email"
+                                placeholder="..."
+                                className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Web */}
+                          <div className="flex items-center py-1">
+                            <div className="w-40 text-sm text-slate-400">Web</div>
+                            <div className="flex-1">
+                              <input
+                                type="url"
+                                placeholder="..."
+                                className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Адрес */}
+                          <div className="flex items-center py-1">
+                            <div className="w-40 text-sm text-slate-400">Адрес</div>
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                placeholder="..."
+                                className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2496,7 +2597,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           left: '660px', // 80px sidebar + 580px modal
           right: '0',
           transform: isClosing ? 'translateX(100%)' : (isOpening ? 'translateX(100%)' : 'translateX(0)'),
-          transition: isOpening ? 'none' : 'transform 0.3s ease-out'
+          transition: isOpening ? 'none' : 'transform 0.2s ease-out'
         }}
         onClick={(e) => e.stopPropagation()}
       >

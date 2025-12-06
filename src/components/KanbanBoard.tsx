@@ -77,6 +77,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
   const [stages, setStages] = useState<Stage[]>([])
   const [dealsByStage, setDealsByStage] = useState<Record<string, Deal[]>>({})
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
+  const [loading, setLoading] = useState(true)
   
   // Horizontal scroll drag state
   const [isDraggingScroll, setIsDraggingScroll] = useState(false)
@@ -92,30 +93,28 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
 
   useEffect(() => {
     async function load() {
+      setLoading(true)
       try {
-        const res = await fetch(`/api/pipelines`)
-        if (!res.ok) return
-        const data = await res.json()
-        const p = data.find((x: any) => x.id === pipelineId)
-        if (!p) return
-        setStages(p.stages || [])
-
-        const r2 = await fetch(`/api/deals?pipelineId=${pipelineId}`)
-        if (!r2.ok) return
-        const deals = await r2.json()
-        const grouped: Record<string, Deal[]> = {}
-        for (const stage of p.stages || []) {
-          grouped[stage.id] = []
+        // Один запрос вместо двух - получаем этапы + сделки сразу
+        const res = await fetch(`/api/pipelines/${pipelineId}/deals`)
+        if (!res.ok) {
+          console.error('Failed to load pipeline data')
+          return
         }
-        for (const d of deals) {
-          const sid = d.stage_id
-          if (sid && grouped[sid]) {
-            grouped[sid].push(d)
-          }
+        const data = await res.json()
+        
+        setStages(data.stages || [])
+        
+        // Преобразуем в формат dealsByStage
+        const grouped: Record<string, Deal[]> = {}
+        for (const stage of data.stages || []) {
+          grouped[stage.id] = stage.deals || []
         }
         setDealsByStage(grouped)
       } catch (e) {
         console.error('Failed to load pipeline data:', e)
+      } finally {
+        setLoading(false)
       }
     }
     load()
@@ -253,6 +252,14 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
 
   const handleMouseLeave = () => {
     setIsDraggingScroll(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-400 text-lg">Загрузка сделок...</div>
+      </div>
+    )
   }
 
   return (

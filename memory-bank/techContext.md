@@ -1,5 +1,21 @@
 # Technical Context
 
+## ⚠️ ТЕРМИНОЛОГИЯ СИСТЕМЫ
+
+**Система: Ошондой CRM**
+
+**Важное различие:**
+- **ACCOUNT** (аккаунт) = Клиент системы, организация
+- **USER** (пользователь) = Сотрудник внутри аккаунта
+
+НЕ путать! В коде и БД:
+- `accounts` table = клиенты Ошондой CRM (верхний уровень)
+- `users` table = сотрудники организаций (с `account_id`)
+
+**Каскадное удаление:** При `DELETE FROM accounts WHERE id=X` автоматически удаляются все связанные users, pipelines, deals, contacts, companies, tasks, notes.
+
+---
+
 ## Stack Overview
 
 | Layer | Technology | Version | Purpose |
@@ -7,7 +23,7 @@
 | Framework | Next.js | 15.3.5 | Full-stack React with App Router |
 | Runtime | Node.js | 22+ | JavaScript runtime |
 | Language | TypeScript | 5.8.3 | Type safety |
-| Database | PostgreSQL | 15 | Primary data store (Docker) |
+| Database | PostgreSQL | 15 | Primary data store (Supabase) |
 | ORM | Drizzle | 0.39.3 | Schema management & migrations |
 | Styling | Tailwind CSS | 4.0.0 | Utility-first CSS |
 | UI Library | React | 18.3.1 | Component framework |
@@ -18,20 +34,22 @@
 
 ## Development Environment
 
-### Docker Setup
+### Database Setup (Supabase - Dec 5, 2025)
 ```yaml
-Container: srm-postgres
-Image: postgres:15
-Port: 5432:5432
-Database: srm
-User: postgres
-Password: postgres
+Provider: Supabase (EU Central 1)
+Connection: Transaction Pooler (IPv4)
+Host: aws-1-eu-central-1.pooler.supabase.com
+Port: 5432
+Database: postgres
+Project: nywsibcnngcexjbotsaq
 ```
+
+**Important:** GitHub Codespaces не поддерживает IPv6, поэтому используем Pooler вместо Direct connection.
 
 ### Environment Variables
 ```bash
-# Database
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/srm"
+# Database (Supabase)
+DATABASE_URL="postgresql://postgres.nywsibcnngcexjbotsaq:Tux6EebSLR9qG9R9@aws-1-eu-central-1.pooler.supabase.com:5432/postgres"
 
 # JWT Authentication
 JWT_SECRET="your-super-secret-jwt-key-change-in-production-12345"

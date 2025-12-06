@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const offset = parseInt(url.searchParams.get('offset') || '0')
 
     const result = await query(
-      'SELECT * FROM companies WHERE account_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      'SELECT * FROM companies WHERE account_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [user.accountId, limit, offset]
     )
     return NextResponse.json(result.rows)

@@ -1,5 +1,37 @@
 # System Patterns
 
+## ⚠️ ТЕРМИНОЛОГИЯ (КРИТИЧЕСКИ ВАЖНО)
+
+**Название: Ошондой CRM**
+
+**Два уровня "пользователей":**
+
+1. **ACCOUNT (Аккаунт)** = Клиент Ошондой CRM
+   - Организация, которая использует систему
+   - Таблица: `accounts`
+   - Пример: ООО "Рога и Копыта" регистрируется → создаётся account
+
+2. **USER (Пользователь/Сотрудник)** = Работник организации
+   - Сотрудник компании, работающий в CRM
+   - Таблица: `users` (с `account_id`)
+   - Пример: Иванов И.И., менеджер в ООО "Рога и Копыта"
+
+**Иерархия каскадного удаления:**
+```sql
+DELETE FROM accounts WHERE id = 1;
+-- Автоматически удалится:
+-- - Все users этого аккаунта
+-- - Все pipelines → stages → deals
+-- - Все companies, contacts, tasks, notes
+-- - ВСЁ, что имеет account_id = 1
+```
+
+**В коде всегда помнить:**
+- `account` = клиент системы (организация)
+- `user` = сотрудник (работает в аккаунте)
+
+---
+
 ## Architecture Overview
 
 ```
@@ -29,13 +61,13 @@
 │  │   - Query execution                   │  │
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
-          │                                   │
-          ▼                                   ▼
-  ┌──────────────┐                  ┌─────────────────┐
-  │  PostgreSQL  │                  │  Docker         │
-  │  (Supabase)  │                  │  Container      │
-  │  Database    │                  │  srm-postgres   │
-  └──────────────┘                  └─────────────────┘
+          │
+          ▼
+  ┌──────────────────────────────┐
+  │  PostgreSQL (Supabase)       │
+  │  EU Central 1 Region         │
+  │  Transaction Pooler (IPv4)   │
+  └──────────────────────────────┘
 ```
 
 ## Key Technical Decisions
@@ -48,6 +80,13 @@
 - Scalable for SaaS business model
 - Each account gets independent: users, companies, contacts, pipelines
 
+**Pipeline Creation Logic**:
+- Воронка создаётся при регистрации АККАУНТА (не пользователя)
+- 1 дефолтная воронка "Основная воронка" per account
+- 7 этапов: 5 видимых (Не разобранное, Первичный контакт, Переговоры, Принимают решение, Согласование договора) + 2 скрытых (Успешно реализована, Провалена)
+- Скрытые этапы (is_visible=false) используются только для отчётов, не показываются в Kanban
+- NO triggers на создание воронок - только через код регистрации
+
 **Implementation:**
 - Top-level `accounts` table with subdomain
 - Foreign key `account_id` on all data tables
@@ -56,9 +95,15 @@
 
 **Data Relationships:**
 ```
-Company (independent) ← deal.company_id (one-to-many)
-Contact (independent) ← deal_contacts.contact_id (many-to-many)
+Company (independent) ← deal.company_id (one-to-many) [ТОЛЬКО ОДНА компания на сделку!]
+Contact (independent) ← deal_contacts.contact_id (many-to-many) [может быть несколько контактов]
 ```
+
+**⚠️ ВАЖНО: У сделки может быть только ОДНА компания!**
+- `deals.company_id` - один-ко-многим (nullable)
+- У одной сделки = максимум 1 компания (или NULL)
+- У одной компании может быть много сделок
+- Контакты могут быть множественные (many-to-many через deal_contacts)
 
 This allows:
 - Creating company/contact from deal modal → adds to account's master list
@@ -86,8 +131,30 @@ This allows:
 **Rationale**:
 - Clear client-server boundary
 - Centralized data access
-- Easier to add authentication later
+- JWT authentication via middleware
+- Multi-tenant security with account_id checks
 - Standard REST patterns
+
+**Security Pattern (Dec 5, 2025):**
+```typescript
+// Every API route with [id] parameter
+export async function GET(request: Request, { params }) {
+  const user = await getUserFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  
+  // ALWAYS filter by account_id
+  const result = await query(
+    'SELECT * FROM deals WHERE id = $1 AND account_id = $2',
+    [dealId, user.accountId]
+  )
+  
+  if (result.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+}
+```
 
 ### 4. Transactional Edit Pattern ⚠️ КРИТИЧЕСКИ ВАЖНО
 **Decision**: Buffer changes locally, save on explicit action

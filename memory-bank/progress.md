@@ -1,5 +1,26 @@
 # Progress Tracking
 
+## Dec 6, 2025 — Supabase Reset & Account Flow
+
+- Supabase schema recreated without cyclic FKs; FK `accounts.last_active_pipeline_id` added post-creation
+- System stages trigger simplified: UPDATE protected, DELETE allowed for cascade
+- Account deletion verified via Supabase UI; cascades to pipelines → stages → deals → deal_contacts
+- Default pipeline “Основная воронка” and 7 stages seeded transactionally per account
+- Test dataset loaded: companies, contacts, 19 deals, and deal_contacts links
+
+### Pending
+- Add auto-seed of default pipeline + stages in `register` route
+- Start dev server and validate full registration/login flow
+- Verify Kanban and DealModal on fresh account
+
+### Known Issues
+- Dev server occasionally exits (130). Use correct command and keep persistent
+- DealModal hardened against non-200 responses; needs runtime verification
+
+### Notes
+- System stages: “Успешно реализована”, “Провалена” — not editable; removable in account cascade
+- Accounts own pipelines; users belong to accounts; deal has single company, many contacts
+
 ## Latest Session (Dec 4, 2025) – Deal Creation & Contact/Company Auto-Create ✅
 
 | Goal | Result |

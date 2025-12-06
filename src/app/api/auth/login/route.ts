@@ -17,9 +17,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Find user (case-insensitive email)
+    // Find user (case-insensitive email, excluding soft-deleted)
     const result = await query(
-      'SELECT id, account_id, email, password_hash, full_name, role FROM users WHERE LOWER(email) = LOWER($1)',
+      'SELECT id, account_id, email, password_hash, full_name, role FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL',
       [email]
     )
 
