@@ -44,10 +44,10 @@ export async function POST(request: Request) {
     }
 
     const result = await query(
-      `INSERT INTO contacts (account_id, created_by, first_name, last_name, email, phone, company_id, position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO contacts (account_id, first_name, last_name, email, phone, company_id, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [user.accountId, user.userId, first_name || null, last_name || null, email || null, phone || null, company_id || null, position || null]
+      [user.accountId, first_name || null, last_name || null, email || null, phone || null, company_id || null, position || null]
     )
 
     return NextResponse.json(result.rows[0], { status: 201 })

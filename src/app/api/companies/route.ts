@@ -39,10 +39,10 @@ export async function POST(request: Request) {
     }
 
     const result = await query(
-      `INSERT INTO companies (account_id, created_by, name, website)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO companies (account_id, name, website)
+       VALUES ($1, $2, $3)
        RETURNING *`,
-      [user.accountId, user.userId, name, website || null]
+      [user.accountId, name, website || null]
     )
 
     return NextResponse.json(result.rows[0], { status: 201 })

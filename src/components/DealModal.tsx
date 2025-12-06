@@ -580,12 +580,48 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   async function handleSave() {
     try {
       if (isNewDeal) {
-        // Создание новой сделки в активной воронке
+        // 1. СНАЧАЛА создаём компанию если она временная
+        let finalCompanyId = editForm.company_id
+        if (editForm.company_id && editForm.company_id.startsWith('temp-company-')) {
+          const company = companies.find(c => c.id === editForm.company_id)
+          if (company) {
+            // Сначала проверяем, существует ли уже такая компания
+            const existingRes = await fetch(`/api/companies?limit=1000`)
+            if (existingRes.ok) {
+              const allCompanies = await existingRes.json()
+              const existing = allCompanies.find((c: any) => 
+                c.name.toLowerCase().trim() === company.name.toLowerCase().trim()
+              )
+              
+              if (existing) {
+                // Используем существующую компанию
+                finalCompanyId = existing.id
+                console.log('Using existing company:', existing.name)
+              } else {
+                // Создаём новую компанию
+                const companyRes = await fetch('/api/companies', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: company.name })
+                })
+                if (companyRes.ok) {
+                  const createdCompany = await companyRes.json()
+                  finalCompanyId = createdCompany.id
+                } else {
+                  console.error('Failed to create company:', await companyRes.text())
+                  finalCompanyId = null // Сделка без компании
+                }
+              }
+            }
+          }
+        }
+        
+        // 2. ТЕПЕРЬ создаём сделку с реальным company_id
         const payload: any = {
           title: editForm.title || undefined, // Если пусто - бэкенд сгенерирует "Сделка #N"
           value: parseFloat(editForm.value) || 0,
           currency: editForm.currency || 'RUB',
-          company_id: editForm.company_id || null,
+          company_id: finalCompanyId || null,
           pipeline_id: editForm.pipeline_id, // Активная воронка
           stage_id: editForm.stage_id, // Первый этап активной воронки
           responsible_user_id: editForm.responsible_user_id || undefined
@@ -604,44 +640,21 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         
         const newDeal = await res.json()
         
-        // 1. Создаём новую компанию если она временная
-        let finalCompanyId = editForm.company_id
-        if (editForm.company_id && editForm.company_id.startsWith('temp-company-')) {
-          const company = companies.find(c => c.id === editForm.company_id)
-          if (company) {
-            const companyRes = await fetch('/api/companies', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: company.name })
-            })
-            if (companyRes.ok) {
-              const createdCompany = await companyRes.json()
-              finalCompanyId = createdCompany.id
-              // Обновляем company_id в новой сделке
-              await fetch(`/api/deals/${newDeal.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  title: newDeal.title,
-                  value: newDeal.budget || 0,
-                  currency: newDeal.currency || 'RUB',
-                  company_id: finalCompanyId
-                })
-              })
-            }
-          }
-        }
-        
-        // 2. Создаём новые контакты в БД
+        // 2. Создаём новые контакты в БД (заменяем временный company_id на реальный)
         const createdContactIds: string[] = []
         for (const newContact of pendingContactChanges.newContacts) {
+          // Заменяем временный company_id на реальный
+          const contactCompanyId = newContact.company_id && newContact.company_id.startsWith('temp-company-')
+            ? finalCompanyId
+            : newContact.company_id
+            
           const contactRes = await fetch('/api/contacts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               first_name: newContact.first_name,
               last_name: newContact.last_name,
-              company_id: newContact.company_id || finalCompanyId || null
+              company_id: contactCompanyId || null
             })
           })
           if (contactRes.ok) {
@@ -676,12 +689,50 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         return
       }
       
-      // Сохраняем основные поля существующей сделки - все опционально
+      // 1. СНАЧАЛА создаём компанию если она временная
+      let finalCompanyId = editForm.company_id
+      if (editForm.company_id && editForm.company_id.startsWith('temp-company-')) {
+        const company = companies.find(c => c.id === editForm.company_id)
+        if (company) {
+          // Сначала проверяем, существует ли уже такая компания
+          const existingRes = await fetch(`/api/companies?limit=1000`)
+          if (existingRes.ok) {
+            const allCompanies = await existingRes.json()
+            const existing = allCompanies.find((c: any) => 
+              c.name.toLowerCase().trim() === company.name.toLowerCase().trim()
+            )
+            
+            if (existing) {
+              // Используем существующую компанию
+              finalCompanyId = existing.id
+              setCompanies(prev => [...prev.filter(c => c.id !== editForm.company_id), existing])
+              console.log('Using existing company:', existing.name)
+            } else {
+              // Создаём новую компанию
+              const companyRes = await fetch('/api/companies', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: company.name })
+              })
+              if (companyRes.ok) {
+                const createdCompany = await companyRes.json()
+                finalCompanyId = createdCompany.id
+                setCompanies(prev => [...prev.filter(c => c.id !== editForm.company_id), createdCompany])
+              } else {
+                console.error('Failed to create company:', await companyRes.text())
+                finalCompanyId = null
+              }
+            }
+          }
+        }
+      }
+      
+      // 2. Сохраняем основные поля существующей сделки - все опционально
       const payload: any = {
         title: editForm.title || 'Сделка без названия',
         value: parseFloat(editForm.value) || 0,
         currency: editForm.currency || 'RUB',
-        company_id: editForm.company_id || null
+        company_id: finalCompanyId || null
       }
       
       if (editForm.stage_id) {
@@ -714,16 +765,21 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         }
       }
 
-      // 1. Создаём новые контакты в БД
+      // 1. Создаём новые контакты в БД (используем finalCompanyId если был temp)
       const createdContactIds: string[] = []
       for (const newContact of pendingContactChanges.newContacts) {
+        // Заменяем временный company_id на реальный
+        const contactCompanyId = newContact.company_id && newContact.company_id.startsWith('temp-company-')
+          ? finalCompanyId
+          : newContact.company_id
+          
         const contactRes = await fetch('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             first_name: newContact.first_name,
             last_name: newContact.last_name,
-            company_id: newContact.company_id || null
+            company_id: contactCompanyId || null
           })
         })
         if (contactRes.ok) {
@@ -759,9 +815,14 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         })
       }
 
-      // 5. Сохраняем изменения в контактах
+      // 5. Сохраняем изменения в контактах (используем finalCompanyId)
       for (const contact of dealContacts) {
         if (!contact.isNew) {
+          // Заменяем временный company_id на реальный
+          const contactCompanyId = contact.company_id && contact.company_id.startsWith('temp-company-')
+            ? finalCompanyId
+            : contact.company_id
+            
           await fetch(`/api/contacts/${contact.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -769,47 +830,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
               phone: contact.phone,
               email: contact.email,
               position: contact.position,
-              company_id: contact.company_id,
+              company_id: contactCompanyId,
               budget2: contact.budget2,
               meeting_date: contact.meeting_date
             })
           })
         }
       }
-
-      // 6. Создаём новую компанию если она временная
-      let finalCompanyId = editForm.company_id
-      if (editForm.company_id && editForm.company_id.startsWith('temp-company-')) {
-        const company = companies.find(c => c.id === editForm.company_id)
-        if (company) {
-          const companyRes = await fetch('/api/companies', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: company.name })
-          })
-          if (companyRes.ok) {
-            const createdCompany = await companyRes.json()
-            finalCompanyId = createdCompany.id
-            // Обновляем список компаний
-            setCompanies(prev => prev.map(c => 
-              c.id === editForm.company_id ? createdCompany : c
-            ))
-            // Обновляем company_id в сделке
-            await fetch(`/api/deals/${dealId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title: editForm.title,
-                value: parseFloat(editForm.value) || 0,
-                currency: editForm.currency,
-                company_id: finalCompanyId
-              })
-            })
-          }
-        }
-      }
       
-      // 7. Сохраняем изменения в компании (если она не новая)
+      // 6. Сохраняем изменения в компании (если она не новая)
       if (finalCompanyId && !finalCompanyId.startsWith('temp-company-')) {
         const company = companies.find(c => c.id === finalCompanyId)
         if (company) {
@@ -1691,7 +1720,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     {/* Контакт с кругом + */}
                     <div className="flex items-center py-2 relative">
                       <span className="text-2xl text-slate-500 mr-2">⊞</span>
-                      <div className="flex-1">
+                      <div className="flex-1 relative">
                         <input
                           type="text"
                           value={contactSearch}
@@ -1701,9 +1730,45 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                               setEditingContact('new')
                             }
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && contactSearch.trim()) {
+                              handleCreateContact(contactSearch.trim(), true)
+                              setContactSearch('')
+                            }
+                          }}
                           placeholder="Добавить контакт"
                           className="w-full text-white bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-1"
                         />
+                        {contactSearch && editingContact === 'new' && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
+                            {contactSearch.trim() && (
+                              <button
+                                onClick={() => {
+                                  handleCreateContact(contactSearch.trim(), true)
+                                  setContactSearch('')
+                                }}
+                                className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
+                              >
+                                + Создать "{contactSearch.trim()}"
+                              </button>
+                            )}
+                            {contacts
+                              .filter(c => `${c.first_name} ${c.last_name}`.toLowerCase().includes(contactSearch.toLowerCase()))
+                              .map(c => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => {
+                                    addContactToDeal(c.id)
+                                    setContactSearch('')
+                                    setEditingContact(null)
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
+                                >
+                                  {c.first_name} {c.last_name}
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -2068,15 +2133,47 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     <div className="space-y-1">
                       <div className="flex items-center py-1">
                         <span className="text-2xl text-slate-500 mr-2">⊞</span>
-                        <div className="flex-1">
+                        <div className="flex-1 relative">
                           <input
                             type="text"
                             value={companySearch}
                             onChange={(e) => setCompanySearch(e.target.value)}
                             onFocus={() => setEditingCompany(true)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && companySearch.trim()) {
+                                handleCreateCompany(companySearch.trim())
+                              }
+                            }}
                             placeholder="Добавить компанию"
                             className="w-full text-white bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-1"
                           />
+                          {companySearch && editingCompany && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
+                              {companySearch.trim() && (
+                                <button
+                                  onClick={() => handleCreateCompany(companySearch.trim())}
+                                  className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
+                                >
+                                  + Создать "{companySearch.trim()}"
+                                </button>
+                              )}
+                              {companies
+                                .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+                                .map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => {
+                                      updateEditForm('company_id', c.id)
+                                      setCompanySearch('')
+                                      setEditingCompany(false)
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
+                                  >
+                                    {c.name}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2510,9 +2607,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             </button>
             <button
               onClick={handleSave}
-              disabled={!hasChanges || saveSuccess}
+              disabled={(!hasChanges && !isNewDeal) || saveSuccess}
               className={`px-4 py-2 rounded relative overflow-hidden transition-colors ${
-                hasChanges && !saveSuccess
+                (hasChanges || isNewDeal) && !saveSuccess
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : saveSuccess
                     ? 'bg-green-700 text-white'
