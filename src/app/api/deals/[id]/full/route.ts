@@ -4,7 +4,7 @@ import { getUserFromRequest } from '../../../../../lib/auth'
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getUserFromRequest(request)
@@ -12,7 +12,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const dealId = params.id
+    const { id: dealId } = await params
 
     // Один оптимизированный запрос со всеми данными сделки
     const result = await query(
@@ -26,7 +26,7 @@ export async function GET(
           json_build_object(
             'id', ru.id,
             'email', ru.email,
-            'full_name', COALESCE(ru.first_name || ' ' || ru.last_name, ru.email)
+            'full_name', COALESCE(ru.full_name, ru.email)
           ) as responsible_user
         FROM deals d
         LEFT JOIN companies c ON c.id = d.company_id
@@ -80,7 +80,7 @@ export async function GET(
             json_build_object(
               'id', u.id,
               'email', u.email,
-              'full_name', COALESCE(u.first_name || ' ' || u.last_name, u.email),
+              'full_name', COALESCE(u.full_name, u.email),
               'role', u.role
             ) ORDER BY u.email
           ) FILTER (WHERE u.id IS NOT NULL),
