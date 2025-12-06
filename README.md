@@ -36,23 +36,30 @@
 - **Принадлежит аккаунту**
 - Пример: Иванов И.И., менеджер в ООО "Рога и Копыта"
 
-### Иерархия (каскадное удаление):
+### Иерархия (soft delete с deleted_at):
 ```
 ACCOUNT (клиент Ошондой CRM)
-  └── При удалении аккаунта удаляется ВСЁ:
-      ├── USERS (сотрудники)
-      ├── COMPANIES (компании)
-      ├── CONTACTS (контакты)
-      ├── PIPELINES → STAGES → DEALS
-      ├── TASKS
-      ├── NOTES
-      └── ACTIVITY_LOGS
+  └── При soft delete (deleted_at = NOW()):
+      ├── USERS (сотрудники) - фильтруются WHERE deleted_at IS NULL
+      ├── COMPANIES (компании) - фильтруются WHERE deleted_at IS NULL
+      ├── CONTACTS (контакты) - фильтруются WHERE deleted_at IS NULL
+      ├── DEALS (сделки) - фильтруются WHERE deleted_at IS NULL
+      ├── TASKS (задачи) - фильтруются WHERE deleted_at IS NULL
+      └── Все данные восстанавливаемы (SET deleted_at = NULL)
 ```
 
 **ЗАПОМНИТЬ:**
-- `DELETE FROM accounts` = полная очистка всех данных организации
+- `UPDATE accounts SET deleted_at = NOW()` = мягкое удаление (можно восстановить)
+- Все SELECT запросы: `WHERE deleted_at IS NULL`
+- Email и subdomain блокируются навсегда (даже после soft delete)
 - Сотрудник ≠ Клиент
 - User (таблица) = сотрудник, Account (таблица) = клиент
+
+**Soft Delete (Dec 6, 2025):**
+- Добавлены `deleted_at` колонки: accounts, users, deals, companies, contacts, tasks
+- Все DELETE заменены на UPDATE с `deleted_at = NOW()`
+- Миграция: `drizzle/migrations/0005_soft_delete.sql`
+- Коммит: `c45f7f6`
 
 ---
 

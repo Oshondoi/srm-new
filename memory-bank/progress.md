@@ -1,6 +1,31 @@
 # Progress Tracking
 
 ## Dec 6, 2025 — Supabase Reset & Account Flow
+## Dec 6, 2025 — Soft Delete System & Registration Fix ✅
+
+**Registration Issue Fixed:**
+- Problem: Duplicate subdomain constraint error (`accounts_subdomain_key`)
+- Root cause: subdomain generated from email (e.g., `sydykovsam@gmail.com` → `sydykovsam`)
+- Solution: Added random 6-char suffix (e.g., `sydykovsam-a1b2c3`)
+- Location: `src/app/api/auth/register/route.ts`
+
+**Soft Delete Implementation:**
+- Added `deleted_at TIMESTAMP` to: accounts, users, deals, companies, contacts, tasks
+- All SELECT: `WHERE deleted_at IS NULL`
+- All DELETE: `UPDATE SET deleted_at = NOW()`
+- Partial indexes for performance
+- Migration: `drizzle/migrations/0005_soft_delete.sql`
+
+**Benefits:** Data recovery, audit trail, email/subdomain blocking after deletion
+
+**Files Changed:** 15+ API routes (auth, companies, contacts, deals, tasks, stats)
+
+**Git:** `c45f7f6` - "feat: Implement soft delete system"
+
+**Pending SQL:** Execute 0005_soft_delete.sql in Supabase
+
+---
+
 
 - Supabase schema recreated without cyclic FKs; FK `accounts.last_active_pipeline_id` added post-creation
 - System stages trigger simplified: UPDATE protected, DELETE allowed for cascade
