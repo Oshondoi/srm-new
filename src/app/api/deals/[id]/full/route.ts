@@ -107,7 +107,7 @@ export async function GET(
 
     const row = result.rows[0]
     
-    const response = {
+    return NextResponse.json({
       deal: {
         ...row,
         value: row.budget,
@@ -117,17 +117,7 @@ export async function GET(
       contacts: row.contacts || [],
       stages: row.stages || [],
       users: row.users || []
-    }
-    
-    console.log('[API /api/deals/[id]/full] Response:', {
-      dealId: response.deal.id,
-      dealTitle: response.deal.title,
-      contactsCount: response.contacts.length,
-      stagesCount: response.stages.length,
-      usersCount: response.users.length
     })
-    
-    return NextResponse.json(response)
   } catch (err: any) {
     console.error('API /api/deals/[id]/full error', err)
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 })
