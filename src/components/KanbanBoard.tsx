@@ -14,7 +14,16 @@ import {
 } from '@dnd-kit/core'
 
 type Stage = { id: string; name: string; position: number; deals_count?: number }
-type Deal = { id: string; title: string; stage_id: string; value?: number; currency?: string }
+type Contact = { id: string; first_name: string; last_name: string; full_name?: string }
+type Deal = { 
+  id: string
+  title: string
+  stage_id: string
+  value?: number
+  currency?: string
+  company_name?: string
+  contacts?: Contact[]
+}
 
 function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -28,6 +37,11 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
       }
     : undefined
 
+  // Форматируем список контактов
+  const contactsText = deal.contacts && deal.contacts.length > 0
+    ? deal.contacts.map(c => c.full_name || `${c.first_name} ${c.last_name}`.trim()).join(', ')
+    : null
+
   return (
     <div
       ref={setNodeRef}
@@ -39,8 +53,18 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
     >
       <div className="font-medium text-white mb-1">{deal.title}</div>
       {deal.value && (
-        <div className="text-sm text-slate-300">
+        <div className="text-sm text-slate-300 mb-1">
           {deal.value.toLocaleString()} {deal.currency || 'RUB'}
+        </div>
+      )}
+      {deal.company_name && (
+        <div className="text-xs text-slate-400 mb-0.5">
+          🏢 {deal.company_name}
+        </div>
+      )}
+      {contactsText && (
+        <div className="text-xs text-slate-400">
+          👤 {contactsText}
         </div>
       )}
     </div>
