@@ -49,6 +49,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [chatType, setChatType] = useState<'chat' | 'note' | 'task'>('chat')
   const [showMentions, setShowMentions] = useState(false)
@@ -575,6 +576,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   }
   
   async function handleSave() {
+    if (isSaving) return // Защита от повторных вызовов
+    
+    setIsSaving(true)
     try {
       if (isNewDeal) {
         // 1. СНАЧАЛА создаём компанию если она временная
@@ -681,7 +685,10 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         }
         
         setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 2000)
+        setTimeout(() => {
+          setSaveSuccess(false)
+          setIsSaving(false)
+        }, 2000)
         onClose(true) // Закрываем и обновляем доску
         return
       }
@@ -861,10 +868,14 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       await loadReferences()
       // Показываем статус сохранения
       setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 2500)
+      setTimeout(() => {
+        setSaveSuccess(false)
+        setIsSaving(false)
+      }, 2500)
     } catch (e) {
       console.error(e)
       alert('Ошибка при сохранении')
+      setIsSaving(false)
     }
   }
   
@@ -2604,16 +2615,18 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             </button>
             <button
               onClick={handleSave}
-              disabled={(!hasChanges && !isNewDeal) || saveSuccess}
+              disabled={(!hasChanges && !isNewDeal) || isSaving}
               className={`px-4 py-2 rounded relative overflow-hidden transition-colors ${
-                (hasChanges || isNewDeal) && !saveSuccess
+                (hasChanges || isNewDeal) && !isSaving
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : saveSuccess
                     ? 'bg-green-700 text-white'
                     : 'bg-slate-700 text-slate-500 cursor-not-allowed'
               }`}
             >
-              <span className={`block transition-opacity duration-200 ${saveSuccess ? 'opacity-0' : 'opacity-100'}`}>Сохранить</span>
+              <span className={`block transition-opacity duration-200 ${saveSuccess ? 'opacity-0' : 'opacity-100'}`}>
+                {isSaving ? 'Сохранение...' : 'Сохранить'}
+              </span>
               <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${saveSuccess ? 'opacity-100' : 'opacity-0'}`}>✓ Сохранено</span>
             </button>
           </div>
