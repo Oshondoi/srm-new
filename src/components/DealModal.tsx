@@ -110,25 +110,36 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     
     // Загружаем только критичные данные при открытии
     if (!isNewDeal) {
+      console.log('[DealModal] Загрузка сделки:', dealId)
       // ОДИН запрос вместо 5 - получаем всё сразу
       fetch(`/api/deals/${dealId}/full`)
         .then(async res => {
+          console.log('[DealModal] Ответ API:', res.status, res.statusText)
           // Безопасная обработка статусов: 200 → данные, 401/404/500 → пустые структуры
           if (!res.ok) {
-            console.warn(`Deal full API non-200: ${res.status}`)
+            console.warn(`[DealModal] Deal full API non-200: ${res.status}`)
+            const text = await res.text()
+            console.warn('[DealModal] Response body:', text)
             return { deal: null, contacts: [], stages: [], users: [] }
           }
-          return res.json()
+          const json = await res.json()
+          console.log('[DealModal] JSON response:', json)
+          return json
         })
         .then(data => {
-          console.log('Deal data loaded:', data)
+          console.log('[DealModal] Deal data loaded:', data)
+          console.log('[DealModal] Setting deal:', data.deal)
+          console.log('[DealModal] Setting contacts:', data.contacts)
+          console.log('[DealModal] Setting stages:', data.stages)
+          console.log('[DealModal] Setting users:', data.users)
           setDeal(data.deal || null)
           setDealContacts(data.contacts || [])
           setStages(data.stages || [])
           setAccountUsers(data.users || [])
+          console.log('[DealModal] State updated')
         })
         .catch(e => {
-          console.error('Failed to load deal data:', e)
+          console.error('[DealModal] Failed to load deal data:', e)
           // Страховка: заполняем пустыми структурами, чтобы UI не был пустым
           setDeal(null)
           setDealContacts([])
@@ -136,6 +147,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           setAccountUsers([])
         })
         .finally(() => {
+          console.log('[DealModal] Finally block - setting isReady=true')
           // Гарантируем готовность UI даже при ошибках
           setIsReady(true)
         })
@@ -1199,9 +1211,26 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-2">
+          {(() => {
+            console.log('[DealModal] Render check:', { isNewDeal, deal: !!deal, dealId: deal?.id, dealTitle: deal?.title })
+            return null
+          })()}
           {!isNewDeal && !deal ? (
-            <div className="space-y-2 animate-pulse">
-              {/* Skeleton для "Общая информация" */}
+            <div className="space-y-2">
+              <div className="bg-yellow-900/30 border border-yellow-600 rounded p-4">
+                <div className="text-yellow-300 font-semibold mb-2">⚠️ Отладка: deal = null</div>
+                <div className="text-xs text-slate-300 space-y-1">
+                  <div>isNewDeal: {String(isNewDeal)}</div>
+                  <div>dealId: {dealId}</div>
+                  <div>deal: {String(deal)}</div>
+                  <div>isReady: {String(isReady)}</div>
+                </div>
+              </div>
+              {(() => {
+                console.log('[DealModal] Showing skeleton - deal is null')
+                return null
+              })()}
+              {/* Skeleton для "Общая информации" */}
               <div className="space-y-1">
                 <div className="flex items-center py-1">
                   <div className="w-40 h-4 bg-slate-700 rounded"></div>
