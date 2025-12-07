@@ -1,5 +1,31 @@
 # Progress Tracking
 
+## Dec 7, 2025 — Kanban Cards: Company & Contacts Display ✅
+
+**Problem:** Kanban deal cards only showed title and budget - no company or contacts visible
+- Symptom: Cards looked empty compared to detailed modal data
+- Root Cause: API didn't return contacts; component didn't render company/contacts
+
+**Solution:**
+- Updated `/api/pipelines/[id]/deals` to include deal contacts via CTE aggregation
+- Modified `DraggableCard` component to display company (🏢) and contacts (👤)
+- Contacts formatted as comma-separated list with full names
+
+**Result:** 
+- Kanban cards show complete info: title, budget, company, contacts
+- Visual icons separate different data types
+- Consistent with modal detail view
+
+**Files Changed:**
+- `src/app/api/pipelines/[id]/deals/route.ts` - added deal_contacts_agg CTE
+- `src/components/KanbanBoard.tsx` - enhanced DraggableCard display
+
+**Git:** `1a60334` - "feat: добавлена компания и контакты на канбан-карточки сделок"
+
+**Status:** ✅ Kanban cards now display full context for deals
+
+---
+
 ## Dec 7, 2025 — Deal Modal Loading UI Fixed ✅
 
 **Problem:** Modal showed debug yellow box for 1-3 seconds before displaying data
