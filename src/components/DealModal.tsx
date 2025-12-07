@@ -684,12 +684,19 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           })
         }
         
+        // Очищаем pending changes
+        setPendingContactChanges({ added: [], removed: [], newContacts: [] })
+        setHasChanges(false)
+        
+        // Обновляем канбан доску
+        window.dispatchEvent(new CustomEvent('deal-updated', { detail: { dealId: newDeal.id, stage_id: newDeal.stage_id } }))
+        
+        // Показываем статус сохранения
         setSaveSuccess(true)
         setTimeout(() => {
           setSaveSuccess(false)
           setIsSaving(false)
-        }, 2000)
-        onClose(true) // Закрываем и обновляем доску
+        }, 2500)
         return
       }
       
