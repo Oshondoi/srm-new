@@ -1,5 +1,33 @@
 # Progress Tracking
 
+## Dec 7, 2025 — Deal Modal Loading UI Fixed ✅
+
+**Problem:** Modal showed debug yellow box for 1-3 seconds before displaying data
+- Symptom: Yellow warning box with "deal = null" appeared briefly, then data loaded
+- Root Cause: `isReady` was set to `true` in `.finally()` block BEFORE data arrived
+- This caused condition `!isNewDeal && !deal` to trigger prematurely
+
+**Solution:**
+- Moved `setIsReady(true)` into `.then()` block - now fires ONLY after data loads
+- Removed `setTimeout(() => setIsReady(true), 50)` from useEffect end
+- Restored normal skeleton with pulse animation
+- Cleaned up excessive console.log statements
+
+**Result:** 
+- Beautiful skeleton animation during 1-3 sec load time
+- Instant data display when ready
+- No yellow boxes or artifacts
+
+**Files Changed:**
+- `src/components/DealModal.tsx` - fixed isReady logic
+- `src/app/api/deals/[id]/full/route.ts` - removed debug logs
+
+**Git:** `a20ab2b` - "fix: исправлена задержка загрузки модалки сделки"
+
+**Status:** ✅ Modal loading experience smooth and professional
+
+---
+
 ## Dec 6, 2025 — Multi-Tenancy Bug Fix + Deal Display Fix ✅
 
 **Critical Bug Fixed: Wrong stage_id for all deals**
