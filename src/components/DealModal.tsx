@@ -84,6 +84,48 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   const [userPlan, setUserPlan] = useState<'free' | 'professional' | 'business'>('free')
   const [hasSearchAccess, setHasSearchAccess] = useState(false)
   
+  // Footer animation state
+  const [isFooterClosing, setIsFooterClosing] = useState(false)
+  
+  // Initial state backup for cancel
+  const [initialEditForm, setInitialEditForm] = useState<any>({})
+  const [initialDealContacts, setInitialDealContacts] = useState<any[]>([])
+  const [initialCompanies, setInitialCompanies] = useState<any[]>([])
+  const [newContactDraft, setNewContactDraft] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    position: '',
+    budget2: '',
+    meeting_date: '',
+    company_id: ''
+  })
+  const [initialNewContactDraft, setInitialNewContactDraft] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    position: '',
+    budget2: '',
+    meeting_date: '',
+    company_id: ''
+  })
+  const [newCompanyDraft, setNewCompanyDraft] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    website: '',
+    address: ''
+  })
+  const [initialNewCompanyDraft, setInitialNewCompanyDraft] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    website: '',
+    address: ''
+  })
+  
   const relatedObjectTypes = [
     { id: 'contacts', label: 'Контакты' },
     { id: 'companies', label: 'Компании' },
@@ -126,6 +168,8 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           setDealContacts(data.contacts || [])
           setStages(data.stages || [])
           setAccountUsers(data.users || [])
+          // Сохраняем начальное состояние для отмены
+          setInitialDealContacts(JSON.parse(JSON.stringify(data.contacts || [])))
           // Устанавливаем isReady только ПОСЛЕ загрузки данных
           setIsReady(true)
         })
@@ -159,7 +203,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             
             const firstStage = activePipeline.stages?.[0]
             setStages(activePipeline.stages || [])
-            setEditForm({
+            const initialForm = {
               title: '',
               value: '',
               company_id: '',
@@ -167,7 +211,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
               stage_name: firstStage?.name || '',
               responsible_user_id: '',
               pipeline_id: activePipeline.id
-            })
+            }
+            setEditForm(initialForm)
+            const emptyContactDraft = createEmptyNewContactDraft(initialForm.company_id)
+            const emptyCompanyDraft = createEmptyNewCompanyDraft()
+            setInitialEditForm(JSON.parse(JSON.stringify(initialForm)))
+            setNewContactDraft(emptyContactDraft)
+            setInitialNewContactDraft(emptyContactDraft)
+            setNewCompanyDraft(emptyCompanyDraft)
+            setInitialNewCompanyDraft(emptyCompanyDraft)
           }
         })
         .catch(e => console.error('Failed to load pipelines:', e))
@@ -184,19 +236,40 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     if (deal) {
       // Небольшая задержка чтобы избежать "моргания" при первом рендере
       requestAnimationFrame(() => {
-        setEditForm({
+        const formData = {
           title: deal.title || '',
-          value: deal.value || '',
+          value: deal.value !== null && deal.value !== undefined ? String(deal.value) : '',
           company_id: deal.company_id || '',
           stage_id: deal.stage_id || '',
           stage_name: deal.stage_name || '',
           responsible_user_id: deal.responsible_user_id || ''
-        })
+        }
+        setEditForm(formData)
+        // Сохраняем начальное состояние
+        setInitialEditForm(JSON.parse(JSON.stringify(formData)))
+        const emptyContactDraft = createEmptyNewContactDraft(formData.company_id)
+        const emptyCompanyDraft = createEmptyNewCompanyDraft()
+        setNewContactDraft(emptyContactDraft)
+        setInitialNewContactDraft(emptyContactDraft)
+        setNewCompanyDraft(emptyCompanyDraft)
+        setInitialNewCompanyDraft(emptyCompanyDraft)
       })
       // Закрываем dropdown при загрузке новых данных
       setShowStageDropdown(false)
     }
   }, [deal])
+
+  useEffect(() => {
+    const targetCompanyId = editForm.company_id || ''
+    setNewContactDraft(prev => {
+      if (prev.company_id === targetCompanyId) {
+        return prev
+      }
+      const updated = { ...prev, company_id: targetCompanyId }
+      updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+      return updated
+    })
+  }, [editForm.company_id])
   
   // Функция для анимированного закрытия фильтров
   const closeChatFilters = () => {
@@ -271,7 +344,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   // Автоматический пересчёт при изменении списка/редактировании структуры
   useEffect(() => {
     recalcContactHeights()
-  }, [dealContacts, editingContact, editingContactCompany])
+  }, [dealContacts, editingContact, editingContactCompany, newContactDraft])
 
   // Дополнительный пересчёт при смене активного контакта (гарантия корректной высоты после клика)
   useEffect(() => {
@@ -303,7 +376,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         fetch('/api/companies?limit=100'), // Лимит для производительности
         fetch('/api/contacts?limit=100')
       ])
-      setCompanies(await companiesRes.json())
+      const loadedCompanies = await companiesRes.json()
+      setCompanies(loadedCompanies)
+      // Сохраняем начальное состояние компаний
+      if (initialCompanies.length === 0) {
+        setInitialCompanies(JSON.parse(JSON.stringify(loadedCompanies)))
+      }
       setContacts(await contactsRes.json())
     } catch (e) {
       console.error(e)
@@ -567,17 +645,259 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     { value: 'email', label: 'Письмо', icon: '✉️' },
     { value: 'other', label: 'Другой', icon: '⚙️' }
   ]
+
+  function createEmptyNewContactDraft(baseCompanyId?: string | null) {
+    return {
+      first_name: '',
+      last_name: '',
+      phone: '',
+      email: '',
+      position: '',
+      budget2: '',
+      meeting_date: '',
+      company_id: baseCompanyId || ''
+    }
+  }
+
+  function isNewContactDraftEmpty(draft: typeof newContactDraft) {
+    return !draft.first_name && !draft.last_name && !draft.phone && !draft.email &&
+      !draft.position && !draft.budget2 && !draft.meeting_date
+  }
+
+  function createEmptyNewCompanyDraft() {
+    return {
+      name: '',
+      phone: '',
+      email: '',
+      website: '',
+      address: ''
+    }
+  }
+
+  function isNewCompanyDraftEmpty(draft: typeof newCompanyDraft) {
+    return !draft.name && !draft.phone && !draft.email && !draft.website && !draft.address
+  }
+
+  function handleContactSearchChange(value: string) {
+    setContactSearch(value)
+    if (editingContact === 'new') {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        setNewContactDraft(prev => {
+          const updated = { ...prev, first_name: '', last_name: '' }
+          updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+          return updated
+        })
+        return
+      }
+      const parts = trimmed.split(/\s+/)
+      const first = parts[0] || ''
+      const last = parts.slice(1).join(' ')
+      setNewContactDraft(prev => {
+        const updated = { ...prev, first_name: first, last_name: last }
+        updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+        return updated
+      })
+    }
+  }
+
+  function prepareNewContactDraftForSave(draft: typeof newContactDraft) {
+    const first = draft.first_name.trim()
+    const last = draft.last_name.trim()
+    const hasName = first || last
+    const hasDetails = draft.phone || draft.email || draft.position || draft.budget2 || draft.meeting_date
+    if (!hasName && !hasDetails) {
+      return null
+    }
+    if (!hasName) {
+      return null
+    }
+    return {
+      first_name: first,
+      last_name: last,
+      phone: draft.phone || undefined,
+      email: draft.email || undefined,
+      position: draft.position || undefined,
+      budget2: draft.budget2 || undefined,
+      meeting_date: draft.meeting_date || undefined,
+      company_id: draft.company_id || ''
+    }
+  }
+
+  function prepareNewCompanyDraftForSave(draft: typeof newCompanyDraft) {
+    const name = draft.name.trim()
+    const hasDetails = draft.phone || draft.email || draft.website || draft.address
+    if (!name && !hasDetails) {
+      return null
+    }
+    if (!name) {
+      return null
+    }
+    return {
+      name,
+      phone: draft.phone || undefined,
+      email: draft.email || undefined,
+      website: draft.website || undefined,
+      address: draft.address || undefined
+    }
+  }
+
+  function normalizePrimitive(value: any) {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'number') {
+      if (Number.isNaN(value)) return ''
+      return value.toString()
+    }
+    if (value instanceof Date) {
+      return value.toISOString()
+    }
+    return value
+  }
+
+  function deepEqualWithEmpty(left: any, right: any): boolean {
+    const leftIsArray = Array.isArray(left)
+    const rightIsArray = Array.isArray(right)
+
+    if (leftIsArray || rightIsArray) {
+      if (!leftIsArray || !rightIsArray) {
+        const leftNormalized = leftIsArray ? left : []
+        const rightNormalized = rightIsArray ? right : []
+        if (leftNormalized.length === 0 && rightNormalized.length === 0) {
+          return true
+        }
+        return false
+      }
+
+      if (left.length !== right.length) {
+        return false
+      }
+
+      for (let i = 0; i < left.length; i += 1) {
+        if (!deepEqualWithEmpty(left[i], right[i])) {
+          return false
+        }
+      }
+      return true
+    }
+
+    const leftIsObject = left && typeof left === 'object'
+    const rightIsObject = right && typeof right === 'object'
+
+    if (leftIsObject || rightIsObject) {
+      if (!leftIsObject || !rightIsObject) {
+        const leftKeys = leftIsObject ? Object.keys(left) : []
+        const rightKeys = rightIsObject ? Object.keys(right) : []
+        if (leftKeys.length === 0 && rightKeys.length === 0) {
+          return true
+        }
+        return false
+      }
+
+      const keys = new Set<string>([...Object.keys(left), ...Object.keys(right)])
+      for (const key of keys) {
+        if (!deepEqualWithEmpty(left[key], right[key])) {
+          return false
+        }
+      }
+      return true
+    }
+
+    return normalizePrimitive(left) === normalizePrimitive(right)
+  }
+  
+  // Проверка, совпадает ли текущее состояние с начальным
+  function checkIfStateMatchesInitial(
+    newEditForm?: any,
+    newDealContacts?: any[],
+    newCompanies?: any[],
+    newPendingChanges?: any,
+    newContactDraftOverride?: typeof newContactDraft,
+    newCompanyDraftOverride?: typeof newCompanyDraft
+  ) {
+    const currentEditForm = newEditForm || editForm
+    const currentDealContacts = newDealContacts || dealContacts
+    const currentCompanies = newCompanies || companies
+    const currentPendingChanges = newPendingChanges || pendingContactChanges
+    const currentNewContactDraft = newContactDraftOverride || newContactDraft
+    const currentNewCompanyDraft = newCompanyDraftOverride || newCompanyDraft
+    
+    // Сравниваем editForm
+    const editFormMatches = deepEqualWithEmpty(currentEditForm, initialEditForm)
+    
+    // Сравниваем dealContacts
+    const dealContactsMatch = deepEqualWithEmpty(currentDealContacts, initialDealContacts)
+    
+    // Сравниваем companies
+    const companiesMatch = deepEqualWithEmpty(currentCompanies, initialCompanies)
+    
+    // Проверяем pendingContactChanges
+    const noPendingChanges = currentPendingChanges.added.length === 0 && 
+                            currentPendingChanges.removed.length === 0 && 
+                            currentPendingChanges.newContacts.length === 0
+
+    const newContactMatches = deepEqualWithEmpty(currentNewContactDraft, initialNewContactDraft)
+    const newCompanyMatches = deepEqualWithEmpty(currentNewCompanyDraft, initialNewCompanyDraft)
+    
+    return editFormMatches && dealContactsMatch && companiesMatch && noPendingChanges && newContactMatches && newCompanyMatches
+  }
+  
+  // Обновить hasChanges на основе сравнения с начальным состоянием
+  function updateHasChangesState(
+    newEditForm?: any,
+    newDealContacts?: any[],
+    newCompanies?: any[],
+    newPendingChanges?: any,
+    newContactDraftOverride?: typeof newContactDraft,
+    newCompanyDraftOverride?: typeof newCompanyDraft
+  ) {
+    const matchesInitial = checkIfStateMatchesInitial(
+      newEditForm,
+      newDealContacts,
+      newCompanies,
+      newPendingChanges,
+      newContactDraftOverride,
+      newCompanyDraftOverride
+    )
+    setHasChanges(!matchesInitial)
+  }
   
   function updateEditForm(field: string, value: any) {
     setEditForm((prev: any) => ({ ...prev, [field]: value }))
-    setHasChanges(true)
   }
+  
+  // useEffect для автоматического отслеживания изменений
+  useEffect(() => {
+    // Проверяем только если начальное состояние уже установлено
+    if (!initialEditForm || Object.keys(initialEditForm).length === 0) {
+      return
+    }
+
+    updateHasChangesState(undefined, undefined, undefined, undefined, newContactDraft, newCompanyDraft)
+  }, [
+    editForm,
+    dealContacts,
+    companies,
+    pendingContactChanges,
+    newContactDraft,
+    newCompanyDraft,
+    initialEditForm,
+    initialDealContacts,
+    initialCompanies,
+    initialNewContactDraft,
+    initialNewCompanyDraft
+  ])
   
   async function handleSave() {
     if (isSaving) return // Защита от повторных вызовов
     
     setIsSaving(true)
     try {
+      const combinedNewContacts = [...pendingContactChanges.newContacts]
+      const draftContactPayload = prepareNewContactDraftForSave(newContactDraft)
+      if (draftContactPayload) {
+        combinedNewContacts.push(draftContactPayload)
+      }
+      const companyDraftPayload = prepareNewCompanyDraftForSave(newCompanyDraft)
       if (isNewDeal) {
         // 1. СНАЧАЛА создаём компанию если она временная
         let finalCompanyId = editForm.company_id
@@ -614,6 +934,18 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             }
           }
         }
+        if (!finalCompanyId && companyDraftPayload) {
+          const companyRes = await fetch('/api/companies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(companyDraftPayload)
+          })
+          if (companyRes.ok) {
+            const createdCompany = await companyRes.json()
+            finalCompanyId = createdCompany.id
+            setCompanies(prev => [...prev, createdCompany])
+          }
+        }
         
         // 2. ТЕПЕРЬ создаём сделку с реальным company_id
         const payload: any = {
@@ -640,9 +972,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         
         // 2. Создаём новые контакты в БД (заменяем временный company_id на реальный)
         const createdContactIds: string[] = []
-        for (const newContact of pendingContactChanges.newContacts) {
+        for (const newContact of combinedNewContacts) {
           // Заменяем временный company_id на реальный
-          const contactCompanyId = newContact.company_id && newContact.company_id.startsWith('temp-company-')
+          const contactCompanyId = newContact.company_id && typeof newContact.company_id === 'string' && newContact.company_id.startsWith('temp-company-')
             ? finalCompanyId
             : newContact.company_id
             
@@ -652,7 +984,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             body: JSON.stringify({
               first_name: newContact.first_name,
               last_name: newContact.last_name,
-              company_id: contactCompanyId || null
+              company_id: contactCompanyId || finalCompanyId || null,
+              phone: newContact.phone,
+              email: newContact.email,
+              position: newContact.position,
+              budget2: newContact.budget2,
+              meeting_date: newContact.meeting_date
             })
           })
           if (contactRes.ok) {
@@ -694,6 +1031,14 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           setSaveSuccess(false)
           setIsSaving(false)
         }, 2500)
+        const resetContactDraft = createEmptyNewContactDraft(finalCompanyId || '')
+        const resetCompanyDraft = createEmptyNewCompanyDraft()
+        setNewContactDraft(resetContactDraft)
+        setInitialNewContactDraft(resetContactDraft)
+        setNewCompanyDraft(resetCompanyDraft)
+        setInitialNewCompanyDraft(resetCompanyDraft)
+        setContactSearch('')
+        setCompanySearch('')
         return
       }
       
@@ -732,6 +1077,19 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
               }
             }
           }
+        }
+      }
+      if (!finalCompanyId && companyDraftPayload) {
+        const companyRes = await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(companyDraftPayload)
+        })
+        if (companyRes.ok) {
+          const createdCompany = await companyRes.json()
+          finalCompanyId = createdCompany.id
+          setCompanies(prev => [...prev, createdCompany])
+          updateEditForm('company_id', createdCompany.id)
         }
       }
       
@@ -774,7 +1132,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
       // 1. Создаём новые контакты в БД (используем finalCompanyId если был temp)
       const createdContactIds: string[] = []
-      for (const newContact of pendingContactChanges.newContacts) {
+      for (const newContact of combinedNewContacts) {
         // Заменяем временный company_id на реальный
         const contactCompanyId = newContact.company_id && newContact.company_id.startsWith('temp-company-')
           ? finalCompanyId
@@ -786,7 +1144,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           body: JSON.stringify({
             first_name: newContact.first_name,
             last_name: newContact.last_name,
-            company_id: contactCompanyId || null
+            company_id: contactCompanyId || finalCompanyId || null,
+            phone: newContact.phone,
+            email: newContact.email,
+            position: newContact.position,
+            budget2: newContact.budget2,
+            meeting_date: newContact.meeting_date
           })
         })
         if (contactRes.ok) {
@@ -865,6 +1228,14 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       // Очищаем pending changes
       setPendingContactChanges({ added: [], removed: [], newContacts: [] })
       setHasChanges(false)
+      const resetContactDraft = createEmptyNewContactDraft(finalCompanyId || editForm.company_id || '')
+      const resetCompanyDraft = createEmptyNewCompanyDraft()
+      setNewContactDraft(resetContactDraft)
+      setInitialNewContactDraft(resetContactDraft)
+      setNewCompanyDraft(resetCompanyDraft)
+      setInitialNewCompanyDraft(resetCompanyDraft)
+      setContactSearch('')
+      setCompanySearch('')
       
       await loadDeal()
       await loadDealContacts()
@@ -932,73 +1303,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
     setHasChanges(true) // Отмечаем что есть изменения
   }
   
-  async function handleCreateContact(fullName: string, forNewContact: boolean = false) {
-    try {
-      const nameParts = fullName.trim().split(' ')
-      const first_name = nameParts[0] || ''
-      const last_name = nameParts.slice(1).join(' ') || ''
-      
-      if (forNewContact) {
-        // Создаём временный контакт (НЕ сохраняем в БД)
-        const ts = Date.now()
-        const tempContact = {
-          id: `temp-${ts}`,
-          tempId: `temp-${ts}`,
-          first_name,
-          last_name,
-          company_id: editForm.company_id || null,
-          isNew: true // маркер что это новый несохранённый контакт
-        }
-        
-        // Добавляем в локальный список для отображения
-        const newIndex = dealContacts.length
-        setDealContacts(prev => {
-          const updated = [...prev, tempContact]
-          return updated
-        })
-        // Автораскрытие только что созданного контакта
-        setActiveContactIndex(newIndex)
-        // Ручной пересчёт высот после добавления (fallback если эффект ещё не сработал)
-        // Двойной пересчёт с небольшими задержками для стабильности DOM
-        setTimeout(() => recalcContactHeights(), 30)
-        setTimeout(() => recalcContactHeights(), 120)
-        
-        // Сохраняем в pending для создания при сохранении карточки
-        setPendingContactChanges(prev => ({
-          ...prev,
-          newContacts: [...prev.newContacts, {
-            tempId: tempContact.tempId,
-            first_name,
-            last_name,
-            company_id: editForm.company_id || undefined
-          }]
-        }))
-        setHasChanges(true)
-      } else {
-        // Для старого функционала - создаём контакт сразу
-        const res = await fetch('/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            first_name, 
-            last_name,
-            company_id: editForm.company_id || null
-          })
-        })
-        if (!res.ok) throw new Error('Failed to create contact')
-        const newContact = await res.json()
-        setContacts([...contacts, newContact])
-        updateEditForm('contact_id', newContact.id)
-      }
-      
-      setEditingContact(null)
-      setContactSearch('')
-    } catch (e) {
-      console.error(e)
-      alert('Ошибка при создании контакта')
-    }
-  }
-
   async function handleCreateTask(e: React.FormEvent) {
     e.preventDefault()
     try {
@@ -1077,12 +1381,25 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                 placeholder="Загрузка..."
               />
             </div>
-            <button
-              onClick={handleClose}
-              className="text-slate-400 hover:text-white text-2xl leading-none"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-2">
+              {!isNewDeal && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                  title="Удалить сделку"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={handleClose}
+                className="text-slate-400 hover:text-white text-3xl leading-none p-1"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Stage Selector - amoCRM style */}
@@ -1209,7 +1526,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div className="flex-1 overflow-y-auto px-4 py-2 pb-24">
           {!isNewDeal && !deal ? (
             <div className="space-y-2 animate-pulse">
               {/* Skeleton для "Общая информация" */}
@@ -1666,7 +1983,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                               setHasChanges(true)
                             }}
                             placeholder="..."
-                            className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                       </div>
@@ -1704,6 +2021,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       if (activeContactIndex !== newContactIndex) {
                         setActiveContactIndex(newContactIndex)
                         setActiveMenu(null)
+                        if (editingContact !== 'new') {
+                          setEditingContact('new')
+                        }
                       }
                     }}
                     className={`rounded-lg overflow-hidden deal-contact-accordion ${
@@ -1721,21 +2041,19 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     <div ref={(el) => { contentRefs.current['new'] = el }}>
                     {/* Контакт с кругом + */}
                     <div className="flex items-center py-2 relative">
-                      <span className="text-2xl text-slate-500 mr-2">⊞</span>
+                      <svg className="w-6 h-6 text-slate-500 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="16"/>
+                        <line x1="8" y1="12" x2="16" y2="12"/>
+                      </svg>
                       <div className="flex-1 relative">
                         <input
                           type="text"
                           value={contactSearch}
-                          onChange={(e) => setContactSearch(e.target.value)}
+                          onChange={(e) => handleContactSearchChange(e.target.value)}
                           onFocus={(e) => {
                             if (!editingContact) {
                               setEditingContact('new')
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && contactSearch.trim()) {
-                              handleCreateContact(contactSearch.trim(), true)
-                              setContactSearch('')
                             }
                           }}
                           placeholder="Добавить контакт"
@@ -1743,17 +2061,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         />
                         {contactSearch && editingContact === 'new' && (
                           <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
-                            {contactSearch.trim() && (
-                              <button
-                                onClick={() => {
-                                  handleCreateContact(contactSearch.trim(), true)
-                                  setContactSearch('')
-                                }}
-                                className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
-                              >
-                                + Создать "{contactSearch.trim()}"
-                              </button>
-                            )}
                             {contacts
                               .filter(c => `${c.first_name} ${c.last_name}`.toLowerCase().includes(contactSearch.toLowerCase()))
                               .map(c => (
@@ -1763,6 +2070,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                                     addContactToDeal(c.id)
                                     setContactSearch('')
                                     setEditingContact(null)
+                                    const emptyDraft = createEmptyNewContactDraft(editForm.company_id)
+                                    setNewContactDraft(emptyDraft)
+                                    updateHasChangesState(undefined, undefined, undefined, undefined, emptyDraft)
                                   }}
                                   className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
                                 >
@@ -1780,12 +2090,10 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         {/* Компания */}
                         <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Компания</div>
-                          <div className="flex-1">
-                            <input
-                              type="text"
-                              placeholder="..."
-                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
-                            />
+                          <div className="flex-1 text-white">
+                            {editForm.company_id 
+                              ? companies.find(c => c.id === editForm.company_id)?.name || 'Не найдена'
+                              : 'Не указано'}
                           </div>
                         </div>
 
@@ -1795,6 +2103,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           <div className="flex-1">
                             <input
                               type="tel"
+                              value={newContactDraft.phone}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setNewContactDraft(prev => {
+                                  const updated = { ...prev, phone: newValue }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                               placeholder="..."
                               className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                             />
@@ -1807,6 +2124,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           <div className="flex-1">
                             <input
                               type="email"
+                              value={newContactDraft.email}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setNewContactDraft(prev => {
+                                  const updated = { ...prev, email: newValue }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                               placeholder="..."
                               className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                             />
@@ -1819,6 +2145,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           <div className="flex-1">
                             <input
                               type="text"
+                              value={newContactDraft.position}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setNewContactDraft(prev => {
+                                  const updated = { ...prev, position: newValue }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                               placeholder="..."
                               className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                             />
@@ -1831,8 +2166,17 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           <div className="flex-1">
                             <input
                               type="number"
+                              value={newContactDraft.budget2}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setNewContactDraft(prev => {
+                                  const updated = { ...prev, budget2: newValue }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                               placeholder="..."
-                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>
@@ -1843,6 +2187,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           <div className="flex-1">
                             <input
                               type="datetime-local"
+                              value={newContactDraft.meeting_date || ''}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setNewContactDraft(prev => {
+                                  const updated = { ...prev, meeting_date: newValue }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                               placeholder="..."
                               className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                             />
@@ -2030,6 +2383,10 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                             onClick={() => {
                               setActiveMenu(null)
                               updateEditForm('company_id', '')
+                              const emptyDraft = createEmptyNewCompanyDraft()
+                              setNewCompanyDraft(emptyDraft)
+                              updateHasChangesState(undefined, undefined, undefined, undefined, undefined, emptyDraft)
+                              setCompanySearch('')
                             }}
                             className="w-full text-left px-4 py-2 text-red-400 hover:bg-slate-600 flex items-center gap-2"
                           >
@@ -2134,31 +2491,30 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     {/* Компания с кругом + */}
                     <div className="space-y-0.5">
                       <div className="flex items-center py-0.5">
-                        <span className="text-2xl text-slate-500 mr-2">⊞</span>
+                        <svg className="w-6 h-6 text-slate-500 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="16"/>
+                          <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
                         <div className="flex-1 relative">
                           <input
                             type="text"
-                            value={companySearch}
-                            onChange={(e) => setCompanySearch(e.target.value)}
+                              value={companySearch}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setCompanySearch(value)
+                                setNewCompanyDraft(prev => {
+                                  const updated = { ...prev, name: value }
+                                  updateHasChangesState(undefined, undefined, undefined, undefined, undefined, updated)
+                                  return updated
+                                })
+                              }}
                             onFocus={() => setEditingCompany(true)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && companySearch.trim()) {
-                                handleCreateCompany(companySearch.trim())
-                              }
-                            }}
                             placeholder="Добавить компанию"
                             className="w-full text-white bg-transparent border-b border-transparent focus:border-blue-500 outline-none px-1"
                           />
                           {companySearch && editingCompany && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
-                              {companySearch.trim() && (
-                                <button
-                                  onClick={() => handleCreateCompany(companySearch.trim())}
-                                  className="w-full text-left px-3 py-2 text-blue-400 hover:bg-slate-600 border-b border-slate-600"
-                                >
-                                  + Создать "{companySearch.trim()}"
-                                </button>
-                              )}
                               {companies
                                 .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
                                 .map(c => (
@@ -2168,6 +2524,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                                       updateEditForm('company_id', c.id)
                                       setCompanySearch('')
                                       setEditingCompany(false)
+                                      const resetDraft = createEmptyNewCompanyDraft()
+                                      setNewCompanyDraft(resetDraft)
+                                      updateHasChangesState(undefined, undefined, undefined, undefined, undefined, resetDraft)
                                     }}
                                     className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
                                   >
@@ -2188,6 +2547,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                             <div className="flex-1">
                               <input
                                 type="tel"
+                                value={newCompanyDraft.phone}
+                                onChange={(e) => {
+                                  const newValue = e.target.value
+                                  setNewCompanyDraft(prev => {
+                                    const updated = { ...prev, phone: newValue }
+                                    updateHasChangesState(undefined, undefined, undefined, undefined, undefined, updated)
+                                    return updated
+                                  })
+                                }}
                                 placeholder="..."
                                 className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                               />
@@ -2200,6 +2568,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                             <div className="flex-1">
                               <input
                                 type="email"
+                                value={newCompanyDraft.email}
+                                onChange={(e) => {
+                                  const newValue = e.target.value
+                                  setNewCompanyDraft(prev => {
+                                    const updated = { ...prev, email: newValue }
+                                    updateHasChangesState(undefined, undefined, undefined, undefined, undefined, updated)
+                                    return updated
+                                  })
+                                }}
                                 placeholder="..."
                                 className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                               />
@@ -2212,6 +2589,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                             <div className="flex-1">
                               <input
                                 type="url"
+                                value={newCompanyDraft.website}
+                                onChange={(e) => {
+                                  const newValue = e.target.value
+                                  setNewCompanyDraft(prev => {
+                                    const updated = { ...prev, website: newValue }
+                                    updateHasChangesState(undefined, undefined, undefined, undefined, undefined, updated)
+                                    return updated
+                                  })
+                                }}
                                 placeholder="..."
                                 className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                               />
@@ -2224,6 +2610,15 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                             <div className="flex-1">
                               <input
                                 type="text"
+                                value={newCompanyDraft.address}
+                                onChange={(e) => {
+                                  const newValue = e.target.value
+                                  setNewCompanyDraft(prev => {
+                                    const updated = { ...prev, address: newValue }
+                                    updateHasChangesState(undefined, undefined, undefined, undefined, undefined, updated)
+                                    return updated
+                                  })
+                                }}
                                 placeholder="..."
                                 className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
                               />
@@ -2592,39 +2987,129 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-slate-700 flex justify-between gap-3">
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+        {/* Footer - появляется только при изменениях */}
+        {hasChanges && !isFooterClosing && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 p-4 bg-slate-700 border-t border-slate-600 shadow-lg z-30"
+            style={{
+              animation: 'slideUpFooter 0.3s ease-out'
+            }}
           >
-            Удалить
-          </button>
-          <div className="flex gap-3">
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
-            >
-              Закрыть
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={(!hasChanges && !isNewDeal) || isSaving}
-              className={`px-4 py-2 rounded relative overflow-hidden transition-colors ${
-                (hasChanges || isNewDeal) && !isSaving
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : saveSuccess
-                    ? 'bg-green-700 text-white'
-                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              <span className={`block transition-opacity duration-200 ${saveSuccess ? 'opacity-0' : 'opacity-100'}`}>
-                {isSaving ? 'Сохранение...' : 'Сохранить'}
-              </span>
-              <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${saveSuccess ? 'opacity-100' : 'opacity-0'}`}>✓ Сохранено</span>
-            </button>
+            <style jsx>{`
+              @keyframes slideUpFooter {
+                from {
+                  transform: translateY(100%);
+                  opacity: 0;
+                }
+                to {
+                  transform: translateY(0);
+                  opacity: 1;
+                }
+              }
+              @keyframes slideDownFooter {
+                from {
+                  transform: translateY(0);
+                  opacity: 1;
+                }
+                to {
+                  transform: translateY(100%);
+                  opacity: 0;
+                }
+              }
+            `}</style>
+            <div className="flex justify-between items-center">
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    await handleSave()
+                    setIsFooterClosing(true)
+                    setTimeout(() => {
+                      setHasChanges(false)
+                      setIsFooterClosing(false)
+                    }, 300)
+                  }}
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? 'Сохранение...' : 'Сохранить'}
+                </button>
+                <button
+                  onClick={() => {
+                    // Анимируем закрытие
+                    setIsFooterClosing(true)
+                    setTimeout(() => {
+                      // Полное восстановление из начального состояния
+                      setEditForm(JSON.parse(JSON.stringify(initialEditForm)))
+                      setDealContacts(JSON.parse(JSON.stringify(initialDealContacts)))
+                      setCompanies(JSON.parse(JSON.stringify(initialCompanies)))
+                      setPendingContactChanges({ added: [], removed: [], newContacts: [] })
+                      setNewContactDraft(JSON.parse(JSON.stringify(initialNewContactDraft)))
+                      setNewCompanyDraft(JSON.parse(JSON.stringify(initialNewCompanyDraft)))
+                      // Очистка поисковых полей и состояний редактирования
+                      setCompanySearch('')
+                      setContactSearch('')
+                      setEditingCompany(false)
+                      setEditingContact(null)
+                      setHasChanges(false)
+                      setIsFooterClosing(false)
+                    }, 300)
+                  }}
+                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+              <button
+                onClick={async () => {
+                  await handleSave()
+                  onClose(true)
+                }}
+                disabled={isSaving}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50"
+              >
+                Сохранить и выйти
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+        {isFooterClosing && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 p-4 bg-slate-700 border-t border-slate-600 shadow-lg z-30"
+            style={{
+              animation: 'slideDownFooter 0.3s ease-out'
+            }}
+          >
+            <style jsx>{`
+              @keyframes slideDownFooter {
+                from {
+                  transform: translateY(0);
+                  opacity: 1;
+                }
+                to {
+                  transform: translateY(100%);
+                  opacity: 0;
+                }
+              }
+            `}</style>
+            <div className="flex justify-between items-center">
+              <div className="flex gap-3">
+                <button disabled className="px-4 py-2 bg-green-600 text-white rounded opacity-50">
+                  Сохранить
+                </button>
+                <button disabled className="px-4 py-2 bg-slate-600 text-white rounded opacity-50">
+                  Отмена
+                </button>
+              </div>
+              <button disabled className="px-4 py-2 bg-blue-600 text-white rounded opacity-50">
+                Сохранить и выйти
+                }}
+                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Exit Confirmation */}

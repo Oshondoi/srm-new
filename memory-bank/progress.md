@@ -1,6 +1,17 @@
 # Progress Tracking
 
 ## Dec 7, 2025 — Kanban Cards: Company & Contacts Display ✅
+## Dec 9, 2025 — Deal Modal Change Detection & Draft Forms ✅
+
+**Highlights:**
+- Рекурсивная проверка `deepEqualWithEmpty` обеспечивает корректный сброс `hasChanges` при возврате значений к исходным (учёт пустых строк, null, NaN).
+- Поле бюджета приводится к строке, чтобы сравнение состояний формы было стабильным.
+- Добавлены драфты для новых контактов и компаний (вспомогательные состояния + начальные снапшоты) — кнопка "Отмена" восстанавливает занесённые данные.
+- Поле "Добавить контакт" теперь выступает как автокомплит и точка входа в драфт: никаких отдельных кнопок "Создать", ввод и дополнительные поля заполняются в общей секции аккордеона.
+
+**Pending:**
+- Проверить, что драфт нового контакта корректно сохраняется при нажатии "Сохранить" (текущая логика pendingContactChanges требует вычитки).
+
 
 **Problem:** Kanban deal cards only showed title and budget - no company or contacts visible
 - Symptom: Cards looked empty compared to detailed modal data
