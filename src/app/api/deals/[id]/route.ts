@@ -97,20 +97,19 @@ export async function PUT(
     const { id: dealId } = await params
     const body = await request.json()
     
-    const { title, value, currency, company_id, closed, stage_id, responsible_user_id } = body
+    const { title, value, company_id, closed, stage_id, responsible_user_id } = body
 
     const result = await query(
         `UPDATE deals 
        SET title = COALESCE($1, title),
            budget = COALESCE($2, budget),
-           currency = COALESCE($3, currency),
-           company_id = $4,
-           is_closed = COALESCE($5, is_closed),
-           stage_id = COALESCE($6, stage_id),
-           responsible_user_id = COALESCE($7, responsible_user_id)
-         WHERE id = $8 AND account_id = $9
+           company_id = $3,
+           is_closed = COALESCE($4, is_closed),
+           stage_id = COALESCE($5, stage_id),
+           responsible_user_id = COALESCE($6, responsible_user_id)
+         WHERE id = $7 AND account_id = $8
          RETURNING *`,
-        [title, value, currency, company_id || null, closed, stage_id || null, responsible_user_id || null, dealId, user.accountId]
+        [title, value, company_id || null, closed, stage_id || null, responsible_user_id || null, dealId, user.accountId]
     )
 
     if (result.rows.length === 0) {

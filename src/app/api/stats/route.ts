@@ -47,7 +47,6 @@ export async function GET(request: Request) {
             'id', id,
             'title', title,
             'value', budget,
-            'currency', currency,
             'company_name', company_name,
             'stage_name', stage_name
           )
@@ -57,7 +56,6 @@ export async function GET(request: Request) {
             d.id,
             d.title,
             d.budget,
-            d.currency,
             c.name as company_name,
             s.name as stage_name
           FROM deals d

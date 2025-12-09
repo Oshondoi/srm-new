@@ -77,7 +77,7 @@ export default function Page() {
                 <div className="flex justify-between items-start mb-1">
                   <div className="font-medium text-white">{deal.title}</div>
                   <div className="text-sm text-slate-300">
-                    {deal.value?.toLocaleString()} {deal.currency}
+                    {deal.value?.toLocaleString()} ₽
                   </div>
                 </div>
                 <div className="text-xs text-slate-400">

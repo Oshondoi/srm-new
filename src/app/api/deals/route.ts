@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const offset = parseInt(url.searchParams.get('offset') || '0')
 
     let sql = `SELECT 
-      d.id, d.title, d.stage_id, d.budget, d.currency, d.company_id, 
+      d.id, d.title, d.stage_id, d.budget, d.company_id, 
       d.responsible_user_id, d.created_at, d.updated_at, d.is_closed,
       c.name as company_name
     FROM deals d
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     }
     
     // New deal creation
-    const { title, value, currency, company_id, pipeline_id, stage_id, closed, responsible_user_id } = body
+    const { title, value, company_id, pipeline_id, stage_id, closed, responsible_user_id } = body
     
     // pipeline_id и stage_id обязательны (приходят из фронтенда с активной воронкой)
     if (!pipeline_id || !stage_id) {
@@ -84,10 +84,10 @@ export async function POST(request: Request) {
     const finalTitle = title || `Сделка #${dealNumber}`
 
     const result = await query(
-      `INSERT INTO deals (account_id, responsible_user_id, title, budget, currency, company_id, pipeline_id, stage_id, is_closed)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO deals (account_id, responsible_user_id, title, budget, company_id, pipeline_id, stage_id, is_closed)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [user.accountId, finalResponsibleUserId, finalTitle, value || 0, currency || 'RUB', company_id || null, pipeline_id, stage_id, closed || false]
+      [user.accountId, finalResponsibleUserId, finalTitle, value || 0, company_id || null, pipeline_id, stage_id, closed || false]
     )
     
     const newDeal = result.rows[0]

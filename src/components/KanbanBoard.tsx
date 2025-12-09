@@ -19,10 +19,11 @@ type Deal = {
   id: string
   title: string
   stage_id: string
-  value?: number
-  currency?: string
+  value: number
   company_name?: string
   contacts?: Contact[]
+  responsible_user_name?: string
+  created_at?: string
 }
 
 function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) {
@@ -37,11 +38,6 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
       }
     : undefined
 
-  // Форматируем список контактов
-  const contactsText = deal.contacts && deal.contacts.length > 0
-    ? deal.contacts.map(c => c.full_name || `${c.first_name} ${c.last_name}`.trim()).join(', ')
-    : null
-
   return (
     <div
       ref={setNodeRef}
@@ -52,9 +48,9 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
       className="deal-card bg-slate-700 hover:bg-slate-600 rounded p-3 cursor-grab active:cursor-grabbing transition-colors"
     >
       <div className="font-medium text-white mb-1">{deal.title}</div>
-      {deal.value && (
-        <div className="text-sm text-slate-300 mb-1">
-          {deal.value.toLocaleString()} {deal.currency || 'RUB'}
+      {deal.responsible_user_name && (
+        <div className="text-sm text-slate-300 mb-1.5 font-medium">
+          🔑 {deal.responsible_user_name}
         </div>
       )}
       {deal.company_name && (
@@ -62,11 +58,25 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
           🏢 {deal.company_name}
         </div>
       )}
-      {contactsText && (
-        <div className="text-xs text-slate-400">
-          👤 {contactsText}
+      {deal.contacts && deal.contacts.length > 0 && deal.contacts.map((contact, index) => (
+        <div key={contact.id || index} className="text-xs text-slate-400 mb-0.5">
+          👥 {contact.full_name || `${contact.first_name} ${contact.last_name}`.trim()}
         </div>
-      )}
+      ))}
+      <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-600">
+        <div className="text-sm font-semibold text-blue-400">
+          {deal.value > 0 ? `${deal.value.toLocaleString()} ₽` : '—'}
+        </div>
+        <div className="text-xs text-slate-500">
+          {deal.created_at ? new Date(deal.created_at).toLocaleString('ru-RU', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : ''}
+        </div>
+      </div>
     </div>
   )
 }

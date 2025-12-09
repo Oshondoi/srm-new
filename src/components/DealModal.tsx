@@ -162,7 +162,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             setEditForm({
               title: '',
               value: '',
-              currency: 'RUB',
               company_id: '',
               stage_id: firstStage?.id || '',
               stage_name: firstStage?.name || '',
@@ -188,7 +187,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         setEditForm({
           title: deal.title || '',
           value: deal.value || '',
-          currency: deal.currency || 'RUB',
           company_id: deal.company_id || '',
           stage_id: deal.stage_id || '',
           stage_name: deal.stage_name || '',
@@ -621,7 +619,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
         const payload: any = {
           title: editForm.title || undefined, // Если пусто - бэкенд сгенерирует "Сделка #N"
           value: parseFloat(editForm.value) || 0,
-          currency: editForm.currency || 'RUB',
           company_id: finalCompanyId || null,
           pipeline_id: editForm.pipeline_id, // Активная воронка
           stage_id: editForm.stage_id, // Первый этап активной воронки
@@ -742,7 +739,6 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       const payload: any = {
         title: editForm.title || 'Сделка без названия',
         value: parseFloat(editForm.value) || 0,
-        currency: editForm.currency || 'RUB',
         company_id: finalCompanyId || null
       }
       
@@ -1244,13 +1240,13 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
           ) : (
             <>
           {activeTab === 'info' && (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {/* Общая информация */}
               <div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {/* Ответственный */}
-                  <div className="flex items-center py-1 relative">
-                    <div className="w-40 text-sm text-slate-400">Отв-ный</div>
+                  <div className="flex items-center py-0.5 relative">
+                    <div className="w-40 text-sm text-slate-400">Ответственный</div>
                     <div className="flex-1 relative">
                       <button
                         type="button"
@@ -1291,25 +1287,16 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                   </div>
 
                   {/* Бюджет */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-0.5">
                     <div className="w-40 text-sm text-slate-400">Бюджет</div>
-                    <div className="flex-1 flex gap-2">
+                    <div className="flex-1">
                       <input
                         type="number"
                         value={editForm.value || ''}
                         onChange={(e) => updateEditForm('value', e.target.value)}
-                        className="flex-1 text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                        className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         placeholder="0"
                       />
-                      <select
-                        value={editForm.currency || 'RUB'}
-                        onChange={(e) => updateEditForm('currency', e.target.value)}
-                        className="text-white bg-transparent outline-none"
-                      >
-                        <option value="RUB">₽</option>
-                        <option value="USD">$</option>
-                        <option value="EUR">€</option>
-                      </select>
                     </div>
                   </div>
                 </div>
@@ -1317,7 +1304,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
               {/* Контакт */}
               <div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   {/* Список контактов сделки */}
                   {dealContacts.map((dealContact, index) => {
                     const isActive = activeContactIndex === index
@@ -1339,12 +1326,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       className={`bg-slate-700/30 rounded-lg overflow-hidden deal-contact-accordion ${!isActive ? 'cursor-pointer hover:bg-slate-700/50 deal-contact-collapsed' : 'deal-contact-expanded'}`}
                       style={{
                         height: isActive ? (expandedHeight ? `${expandedHeight}px` : 'auto') : `${collapsedHeight}px`,
-                        padding: '10px'
+                        padding: '8px'
                       }}
                     >
                       <div ref={(el) => { contentRefs.current[dealContact.id] = el }}>
                       {/* Имя контакта */}
-                      <div className="flex items-center py-2 relative">
+                      <div className="flex items-center py-0.5 relative">
                         <div className="w-40 text-sm text-slate-400">Контакт</div>
                         <div className="flex-1">
                           {editingContact !== dealContact.id ? (
@@ -1468,9 +1455,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         )}
                       </div>
 
-                      <div className="space-y-2 mt-2" style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
+                      <div className="space-y-0.5 mt-1" style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
                       {/* Компания контакта */}
-                      <div className="flex items-center py-1 relative">
+                      <div className="flex items-center py-0.5 relative">
                         <div className="w-40 text-sm text-slate-400">Компания</div>
                         <div className="flex-1">
                           {editingContactCompany !== dealContact.id ? (
@@ -1605,7 +1592,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       </div>
 
                       {/* Телефон */}
-                      <div className="flex items-center py-1">
+                      <div className="flex items-center py-0.5">
                         <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
                         <div className="flex-1">
                           <input
@@ -1625,7 +1612,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       </div>
 
                       {/* Email */}
-                      <div className="flex items-center py-1">
+                      <div className="flex items-center py-0.5">
                         <div className="w-40 text-sm text-slate-400">Email раб.</div>
                         <div className="flex-1">
                           <input
@@ -1645,7 +1632,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       </div>
 
                       {/* Должность */}
-                      <div className="flex items-center py-1">
+                      <div className="flex items-center py-0.5">
                         <div className="w-40 text-sm text-slate-400">Должность</div>
                         <div className="flex-1">
                           <input
@@ -1789,9 +1776,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
                     {/* Раскрывающиеся поля как у существующей карточки */}
                     {editingContact === 'new' && activeContactIndex === dealContacts.length && (
-                      <div className="space-y-2 mt-2">
+                      <div className="space-y-0.5 mt-1">
                         {/* Компания */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Компания</div>
                           <div className="flex-1">
                             <input
@@ -1803,7 +1790,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         </div>
 
                         {/* Телефон */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
                           <div className="flex-1">
                             <input
@@ -1815,7 +1802,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         </div>
 
                         {/* Email */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Email раб.</div>
                           <div className="flex-1">
                             <input
@@ -1827,7 +1814,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         </div>
 
                         {/* Должность */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Должность</div>
                           <div className="flex-1">
                             <input
@@ -1839,7 +1826,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         </div>
 
                         {/* Бюджет 2 */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Бюджет 2</div>
                           <div className="flex-1">
                             <input
@@ -1851,7 +1838,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         </div>
 
                         {/* Встреча */}
-                        <div className="flex items-center py-1">
+                        <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Встреча</div>
                           <div className="flex-1">
                             <input
@@ -1882,34 +1869,34 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       <div 
                         key={`measure-${contact.id}`}
                         ref={(el) => { contentRefs.current[contact.id] = el }}
-                        style={{ padding: '10px' }}
+                        style={{ padding: '8px' }}
                       >
-                        <div className="flex items-center py-2 relative">
+                        <div className="flex items-center py-0.5 relative">
                           <div className="w-40 text-sm text-slate-400">Контакт</div>
                           <div className="flex-1 text-white">{contact.first_name} {contact.last_name}</div>
                         </div>
-                        <div className="space-y-2 mt-2">
-                          <div className="flex items-center py-1">
+                        <div className="space-y-0.5 mt-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Компания</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Email раб.</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Должность</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Бюджет 2</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Встреча</div>
                             <div className="flex-1 text-white">Placeholder</div>
                           </div>
@@ -1923,10 +1910,10 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
               {/* Компания */}
               <div>
                 {editForm.company_id ? (
-                  <div className="bg-slate-700/30 rounded-lg overflow-hidden" style={{ padding: '10px' }} data-company-block>
-                    <div className="space-y-1">
+                  <div className="bg-slate-700/30 rounded-lg overflow-hidden" style={{ padding: '8px' }} data-company-block>
+                    <div className="space-y-0.5">
                     {/* Компания */}
-                    <div className="flex items-center py-1 relative">
+                    <div className="flex items-center py-0.5 relative">
                       <div className="w-40 text-sm text-slate-400">Компания</div>
                       <div className="flex-1">
                         {!editingCompany ? (
@@ -2054,7 +2041,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     </div>
 
                   {/* Раб. тел. */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-0.5">
                     <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
                     <div className="flex-1">
                       <input
@@ -2074,7 +2061,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                   </div>
 
                   {/* Email раб. */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-0.5">
                     <div className="w-40 text-sm text-slate-400">Email раб.</div>
                     <div className="flex-1">
                       <input
@@ -2094,7 +2081,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                   </div>
 
                   {/* Web */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-0.5">
                     <div className="w-40 text-sm text-slate-400">Web</div>
                     <div className="flex-1">
                       <input
@@ -2114,7 +2101,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                   </div>
 
                   {/* Адрес */}
-                  <div className="flex items-center py-1">
+                  <div className="flex items-center py-0.5">
                     <div className="w-40 text-sm text-slate-400">Адрес</div>
                     <div className="flex-1">
                       <input
@@ -2140,13 +2127,13 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     data-is-new-company="true"
                     className="rounded-lg overflow-hidden"
                     style={{ 
-                      padding: '10px',
+                      padding: '8px',
                       height: editingCompany ? 'auto' : '60px'
                     }}
                   >
                     {/* Компания с кругом + */}
-                    <div className="space-y-1">
-                      <div className="flex items-center py-1">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center py-0.5">
                         <span className="text-2xl text-slate-500 mr-2">⊞</span>
                         <div className="flex-1 relative">
                           <input
@@ -2194,9 +2181,9 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
 
                       {/* Раскрывающиеся поля как у существующей компании */}
                       {editingCompany && (
-                        <div className="space-y-2 mt-2">
+                        <div className="space-y-0.5 mt-1">
                           {/* Раб. тел. */}
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Раб. тел.</div>
                             <div className="flex-1">
                               <input
@@ -2208,7 +2195,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           </div>
 
                           {/* Email раб. */}
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Email раб.</div>
                             <div className="flex-1">
                               <input
@@ -2220,7 +2207,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           </div>
 
                           {/* Web */}
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Web</div>
                             <div className="flex-1">
                               <input
@@ -2232,7 +2219,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                           </div>
 
                           {/* Адрес */}
-                          <div className="flex items-center py-1">
+                          <div className="flex items-center py-0.5">
                             <div className="w-40 text-sm text-slate-400">Адрес</div>
                             <div className="flex-1">
                               <input
@@ -2649,13 +2636,22 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             <div className="flex gap-3">
               <button
                 onClick={async () => {
-                  // Восстанавливаем исходное состояние
+                  // Сохраняем и выходим
+                  await handleSave()
+                  confirmClose(true)
+                }}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+              >
+                Сохранить и выйти
+              </button>
+              <button
+                onClick={async () => {
+                  // Восстанавливаем исходное состояние и выходим
                   await loadDealContacts()
                   if (deal) {
                     setEditForm({
                       title: deal.title || '',
                       value: deal.value || '',
-                      currency: deal.currency || 'RUB',
                       company_id: deal.company_id || '',
                       contact_id: deal.contact_id || ''
                     })
