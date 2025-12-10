@@ -85,7 +85,7 @@ function DroppableColumn({ stage, deals, onDealClick }: { stage: Stage; deals: D
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   return (
-    <div className="w-72 card flex-shrink-0">
+    <div className="card flex-shrink-0" style={{ width: '310px' }}>
       <div className="font-semibold mb-3 text-white flex justify-between">
         <span>{stage.name}</span>
         <span className="bg-slate-600 px-2 py-0.5 rounded text-xs">{deals.length}</span>

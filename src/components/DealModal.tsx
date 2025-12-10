@@ -42,6 +42,8 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   const [activeContactIndex, setActiveContactIndex] = useState(0)
   const [editingContactCompany, setEditingContactCompany] = useState<string | null>(null)
   const [contactCompanySearch, setContactCompanySearch] = useState('')
+  const [editingNewContactCompany, setEditingNewContactCompany] = useState(false)
+  const [newContactCompanySearch, setNewContactCompanySearch] = useState('')
   const [contactHeights, setContactHeights] = useState<Record<string, number>>({})
   const contentRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [isClosing, setIsClosing] = useState(false)
@@ -238,7 +240,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       requestAnimationFrame(() => {
         const formData = {
           title: deal.title || '',
-          value: deal.value !== null && deal.value !== undefined ? String(deal.value) : '',
+          value: deal.value !== null && deal.value !== undefined ? String(Math.floor(Number(deal.value))) : '',
           company_id: deal.company_id || '',
           stage_id: deal.stage_id || '',
           stage_name: deal.stage_name || '',
@@ -1625,7 +1627,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                   {/* Список контактов сделки */}
                   {dealContacts.map((dealContact, index) => {
                     const isActive = activeContactIndex === index
-                    const collapsedHeight = 60
+                    const collapsedHeight = 40
                     const expandedHeight = contactHeights[dealContact.id]
                     
                     return (
@@ -1643,12 +1645,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       className={`bg-slate-700/30 rounded-lg overflow-hidden deal-contact-accordion ${!isActive ? 'cursor-pointer hover:bg-slate-700/50 deal-contact-collapsed' : 'deal-contact-expanded'}`}
                       style={{
                         height: isActive ? (expandedHeight ? `${expandedHeight}px` : 'auto') : `${collapsedHeight}px`,
-                        padding: '8px'
+                        padding: '4px'
                       }}
                     >
                       <div ref={(el) => { contentRefs.current[dealContact.id] = el }}>
                       {/* Имя контакта */}
-                      <div className="flex items-center py-0.5 relative">
+                      <div className="flex items-center py-0 relative">
                         <div className="w-40 text-sm text-slate-400">Контакт</div>
                         <div className="flex-1">
                           {editingContact !== dealContact.id ? (
@@ -1776,136 +1778,56 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                       {/* Компания контакта */}
                       <div className="flex items-center py-0.5 relative">
                         <div className="w-40 text-sm text-slate-400">Компания</div>
-                        <div className="flex-1">
-                          {editingContactCompany !== dealContact.id ? (
-                            <div 
-                              onClick={() => {
-                                if (!dealContact.company_id) {
-                                  setEditingContactCompany(dealContact.id)
-                                  setContactCompanySearch('')
-                                } else {
-                                  setActiveMenu(activeMenu === `contact-company-${dealContact.id}` ? null : `contact-company-${dealContact.id}`)
-                                }
-                              }}
-                              onDoubleClick={() => {
-                                setEditingContactCompany(dealContact.id)
-                                setContactCompanySearch(
-                                  dealContact.company_id 
-                                    ? companies.find(c => c.id === dealContact.company_id)?.name || ''
-                                    : ''
-                                )
-                                setActiveMenu(null)
-                              }}
-                              className="context-menu-trigger text-white cursor-pointer hover:bg-slate-700/30 px-2 py-1 rounded -mx-2"
-                              data-contact-company-name-id={dealContact.id}
-                            >
-                              <span data-contact-company-name-trigger={dealContact.id}>
-                                {dealContact.company_id 
-                                  ? companies.find(c => c.id === dealContact.company_id)?.name || 'Не найдена'
-                                  : 'Не указано'
-                                }
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={contactCompanySearch}
-                                onChange={(e) => setContactCompanySearch(e.target.value)}
-                                onBlur={() => {
-                                  setTimeout(() => {
-                                    setEditingContactCompany(null)
-                                    setContactCompanySearch('')
-                                  }, 200)
-                                }}
-                                autoFocus
-                                placeholder="Введите название компании..."
-                                className="w-full text-white bg-slate-700 px-2 py-1 rounded border border-blue-500 outline-none"
-                              />
-                              {contactCompanySearch && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
-                                  {companies
-                                    .filter(c => c.name.toLowerCase().includes(contactCompanySearch.toLowerCase()))
-                                    .map(c => (
-                                      <button
-                                        key={c.id}
-                                        onClick={() => {
-                                          setDealContacts(dealContacts.map(dc => 
-                                            dc.id === dealContact.id ? { ...dc, company_id: c.id } : dc
-                                          ))
-                                          setEditingContactCompany(null)
-                                          setContactCompanySearch('')
-                                          setHasChanges(true)
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
-                                      >
-                                        {c.name}
-                                      </button>
-                                    ))}
-                                </div>
-                              )}
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={editingContactCompany === dealContact.id 
+                              ? contactCompanySearch 
+                              : (dealContact.company_id ? companies.find(c => c.id === dealContact.company_id)?.name || '' : '')
+                            }
+                            onChange={(e) => {
+                              setContactCompanySearch(e.target.value)
+                            }}
+                            onFocus={() => {
+                              setEditingContactCompany(dealContact.id)
+                              setContactCompanySearch(
+                                dealContact.company_id 
+                                  ? companies.find(c => c.id === dealContact.company_id)?.name || ''
+                                  : ''
+                              )
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                setEditingContactCompany(null)
+                                setContactCompanySearch('')
+                              }, 200)
+                            }}
+                            placeholder="..."
+                            className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                          />
+                          {editingContactCompany === dealContact.id && contactCompanySearch && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
+                              {companies
+                                .filter(c => c.name.toLowerCase().includes(contactCompanySearch.toLowerCase()))
+                                .map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => {
+                                      setDealContacts(dealContacts.map(dc => 
+                                        dc.id === dealContact.id ? { ...dc, company_id: c.id } : dc
+                                      ))
+                                      setEditingContactCompany(null)
+                                      setContactCompanySearch('')
+                                      setHasChanges(true)
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
+                                  >
+                                    {c.name}
+                                  </button>
+                                ))}
                             </div>
                           )}
                         </div>
-                        {activeMenu === `contact-company-${dealContact.id}` && dealContact.company_id && (
-                          <div 
-                            className="context-menu fixed bg-slate-700 rounded shadow-xl py-1 z-[100] min-w-[200px] border border-slate-600" 
-                            style={{
-                              ...(typeof window !== 'undefined' ? (() => {
-                                const trigger = document.querySelector(`[data-contact-company-name-trigger="${dealContact.id}"]`)
-                                const rect = trigger?.getBoundingClientRect()
-                                const menuWidth = 220
-                                const menuHeightEstimate = 180
-                                const gap = 6
-                                if (!rect) return { top: '0px', left: '0px' }
-                                const hasSpaceBelow = rect.bottom + gap + menuHeightEstimate <= window.innerHeight
-                                const top = hasSpaceBelow ? (rect.bottom + gap) : Math.max(8, rect.top - menuHeightEstimate - gap)
-                                // Прилегаем к левому краю строки ФИО
-                                let left = rect.left
-                                const maxLeft = window.innerWidth - menuWidth - 8
-                                if (left > maxLeft) left = maxLeft
-                                if (left < 8) left = 8
-                                return { top: `${top}px`, left: `${left}px` }
-                              })() : { top: '0px', left: '0px' })
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              onClick={() => {
-                                setActiveMenu(null)
-                                window.location.href = `/companies?openModal=${dealContact.company_id}`
-                              }}
-                              className="w-full text-left px-4 py-2 text-white hover:bg-slate-600 flex items-center gap-2"
-                            >
-                              <span>📋</span>
-                              <span>Перейти в карточку</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveMenu(null)
-                                setEditingContactCompany(dealContact.id)
-                                setContactCompanySearch(companies.find(c => c.id === dealContact.company_id)?.name || '')
-                              }}
-                              className="w-full text-left px-4 py-2 text-white hover:bg-slate-600 flex items-center gap-2"
-                            >
-                              <span>✏️</span>
-                              <span>Редактировать</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveMenu(null)
-                                setDealContacts(dealContacts.map(dc => 
-                                  dc.id === dealContact.id ? { ...dc, company_id: null } : dc
-                                ))
-                                setHasChanges(true)
-                              }}
-                              className="w-full text-left px-4 py-2 text-red-400 hover:bg-slate-600 flex items-center gap-2"
-                            >
-                              <span>🗑️</span>
-                              <span>Удалить</span>
-                            </button>
-                          </div>
-                        )}
                       </div>
 
                       {/* Телефон */}
@@ -2034,13 +1956,13 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     style={{
                       height: activeContactIndex === dealContacts.length 
                         ? (contactHeights['new'] ? `${contactHeights['new']}px` : 'auto') 
-                        : '60px',
-                      padding: '10px'
+                        : '40px',
+                      padding: '4px'
                     }}
                   >
                     <div ref={(el) => { contentRefs.current['new'] = el }}>
                     {/* Контакт с кругом + */}
-                    <div className="flex items-center py-2 relative">
+                    <div className="flex items-center py-0 relative">
                       <svg className="w-6 h-6 text-slate-500 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="12" cy="12" r="10"/>
                         <line x1="12" y1="8" x2="12" y2="16"/>
@@ -2090,10 +2012,56 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         {/* Компания */}
                         <div className="flex items-center py-0.5">
                           <div className="w-40 text-sm text-slate-400">Компания</div>
-                          <div className="flex-1 text-white">
-                            {editForm.company_id 
-                              ? companies.find(c => c.id === editForm.company_id)?.name || 'Не найдена'
-                              : 'Не указано'}
+                          <div className="flex-1 relative">
+                            <input
+                              type="text"
+                              value={editingNewContactCompany 
+                                ? newContactCompanySearch 
+                                : (newContactDraft.company_id ? companies.find(c => c.id === newContactDraft.company_id)?.name || '' : '')
+                              }
+                              onChange={(e) => {
+                                setNewContactCompanySearch(e.target.value)
+                              }}
+                              onFocus={() => {
+                                setEditingNewContactCompany(true)
+                                setNewContactCompanySearch(
+                                  newContactDraft.company_id 
+                                    ? companies.find(c => c.id === newContactDraft.company_id)?.name || ''
+                                    : ''
+                                )
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => {
+                                  setEditingNewContactCompany(false)
+                                  setNewContactCompanySearch('')
+                                }, 200)
+                              }}
+                              placeholder="..."
+                              className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1"
+                            />
+                            {editingNewContactCompany && newContactCompanySearch && (
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 rounded shadow-lg max-h-48 overflow-y-auto z-20">
+                                {companies
+                                  .filter(c => c.name.toLowerCase().includes(newContactCompanySearch.toLowerCase()))
+                                  .map(c => (
+                                    <button
+                                      key={c.id}
+                                      onClick={() => {
+                                        setNewContactDraft(prev => {
+                                          const updated = { ...prev, company_id: c.id }
+                                          updateHasChangesState(undefined, undefined, undefined, undefined, updated)
+                                          return updated
+                                        })
+                                        setEditingNewContactCompany(false)
+                                        setNewContactCompanySearch('')
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-white hover:bg-slate-600"
+                                    >
+                                      {c.name}
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -2484,13 +2452,13 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                     data-is-new-company="true"
                     className="rounded-lg overflow-hidden"
                     style={{ 
-                      padding: '8px',
-                      height: editingCompany ? 'auto' : '60px'
+                      padding: '4px',
+                      height: editingCompany ? 'auto' : '40px'
                     }}
                   >
                     {/* Компания с кругом + */}
                     <div className="space-y-0.5">
-                      <div className="flex items-center py-0.5">
+                      <div className="flex items-center py-0">
                         <svg className="w-6 h-6 text-slate-500 mr-2 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <circle cx="12" cy="12" r="10"/>
                           <line x1="12" y1="8" x2="12" y2="16"/>
