@@ -46,6 +46,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   const [newContactCompanySearch, setNewContactCompanySearch] = useState('')
   const [contactHeights, setContactHeights] = useState<Record<string, number>>({})
   const contentRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const stageDropdownRef = useRef<HTMLDivElement | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [isOpening, setIsOpening] = useState(true)
   const [chatMessages, setChatMessages] = useState<any[]>([])
@@ -240,7 +241,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       requestAnimationFrame(() => {
         const formData = {
           title: deal.title || '',
-          value: deal.value !== null && deal.value !== undefined ? String(Math.floor(Number(deal.value))) : '',
+          value: deal.value !== null && deal.value !== undefined && Number(deal.value) !== 0 ? String(Math.floor(Number(deal.value))) : '',
           company_id: deal.company_id || '',
           stage_id: deal.stage_id || '',
           stage_name: deal.stage_name || '',
@@ -285,6 +286,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
+      const isInsideStageDropdown = !!stageDropdownRef.current && stageDropdownRef.current.contains(target)
       
       // Закрываем панель фильтров чата при клике вне её (НО НЕ при клике на поле поиска)
       if (showChatFilters && !target.closest('.chat-filters-panel') && !target.closest('.search-filter-toggle')) {
@@ -293,29 +295,12 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
       }
       
       // Закрываем все dropdown'ы, если клик был вне них
-      if (!target.closest('.dropdown-container') && !target.closest('.stage-dropdown-container') && !target.closest('.recipient-dropdown') && !target.closest('.responsible-dropdown') && !target.closest('.task-relation-dropdown') && !target.closest('.context-menu') && !target.closest('.context-menu-trigger')) {
+      if (!target.closest('.dropdown-container') && !isInsideStageDropdown && !target.closest('.recipient-dropdown') && !target.closest('.responsible-dropdown') && !target.closest('.task-relation-dropdown') && !target.closest('.context-menu') && !target.closest('.context-menu-trigger')) {
         setActiveMenu(null)
         setShowStageDropdown(false)
         setShowRecipientDropdown(false)
         setShowResponsibleDropdown(false)
         setShowTaskRelationDropdown(false)
-      } else {
-        // Если клик внутри одного dropdown, закрываем остальные
-        if (!target.closest('.dropdown-container') && !target.closest('.context-menu') && !target.closest('.context-menu-trigger')) {
-          setActiveMenu(null)
-        }
-        if (!target.closest('.stage-dropdown-container')) {
-          setShowStageDropdown(false)
-        }
-        if (!target.closest('.recipient-dropdown')) {
-          setShowRecipientDropdown(false)
-        }
-        if (!target.closest('.responsible-dropdown')) {
-          setShowResponsibleDropdown(false)
-        }
-        if (!target.closest('.task-relation-dropdown')) {
-          setShowTaskRelationDropdown(false)
-        }
       }
     }
     document.addEventListener('click', handleClickOutside)
@@ -1404,107 +1389,95 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
             </div>
           </div>
 
-          {/* Stage Selector - amoCRM style */}
-          {stages.length === 0 || (!isNewDeal && !isReady) ? (
-            /* Skeleton для этапов - одна сплошная полоска */
-            <div className="relative stage-dropdown-container">
-              <div className="group rounded px-2 py-1.5 -mx-2 animate-pulse">
+          {/* Stage Selector - rebuilt block */}
+          <div className="stage-picker-wrapper relative" ref={stageDropdownRef}>
+            {stages.length === 0 || (!isNewDeal && !isReady) ? (
+              <div className="stage-picker-skeleton rounded px-2 py-1.5 -mx-2 animate-pulse">
                 <div className="mb-1.5">
                   <div className="w-full h-1.5 bg-slate-700 rounded" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-300">
-                    <span className="bg-slate-700 rounded inline-block" style={{ width: '160px', height: '14px' }}></span>
+                  <span className="text-sm text-slate-400">
+                    <span className="inline-block bg-slate-700 rounded" style={{ width: '140px', height: '14px' }} />
                   </span>
-                  <span className="text-xs text-slate-400">▼</span>
+                  <span className="text-xs text-slate-500">▼</span>
                 </div>
               </div>
-            </div>
-          ) : (
-          <div className="relative stage-dropdown-container">
-            {/* Current Stage Display - клик открывает dropdown */}
-            <div 
-              className="group cursor-pointer rounded px-2 py-1.5 -mx-2 hover:bg-slate-700"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowStageDropdown(!showStageDropdown)
-              }}
-            >
-              {/* Полоски этапов */}
-              <div className="flex gap-1 mb-1.5">
-                {stages.map((stage, index) => {
-                  const currentStageId = (editForm.stage_id || deal?.stage_id)
-                  const currentIndex = stages.findIndex(s => s.id === currentStageId)
-                  const isPassed = index <= currentIndex
-                  
-                  const stageColors: Record<string, string> = {
-                    'Неразобранное': 'bg-yellow-400',
-                    'Первичный контакт': 'bg-blue-400',
-                    'Переговоры': 'bg-yellow-300',
-                    'Принимают решение': 'bg-orange-400',
-                    'Согласование договора': 'bg-pink-400',
-                    'Успешно реализовано': 'bg-green-400',
-                    'Закрыто и не реализовано': 'bg-gray-400'
-                  }
-                  const colorClass = stageColors[stage.name] || 'bg-blue-500'
-                  
-                  return (
-                    <div 
-                      key={stage.id}
-                      className={`flex-1 h-1.5 rounded ${isPassed ? colorClass : 'bg-slate-600'}`}
-                    />
-                  )
-                })}
-              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  id="stage-picker-toggle"
+                  className="stage-picker-toggle group w-full rounded px-3 py-2 -mx-3 hover:bg-slate-700/80 transition-colors text-left"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowStageDropdown((prev) => !prev)
+                  }}
+                >
+                  <div className="stage-picker-progress flex gap-1.5 mb-2">
+                    {stages.map((stage, index) => {
+                      const currentStageId = editForm.stage_id || deal?.stage_id
+                      const currentIndex = stages.findIndex(s => s.id === currentStageId)
+                      const isPassed = index <= currentIndex
+                      return (
+                        <span
+                          key={`stage-step-${stage.id}`}
+                          className="h-1.5 flex-1 rounded-full block"
+                          style={{ backgroundColor: isPassed ? (stage.color || '#3b82f6') : '#475569' }}
+                        />
+                      )
+                    })}
+                  </div>
+                  <div className="stage-picker-label flex items-center justify-between text-sm">
+                    <span className="text-slate-200 font-medium">
+                      {editForm.stage_name || deal?.stage_name || 'Без этапа'}
+                    </span>
+                    <span className="text-xs text-slate-400 transition-transform group-hover:translate-y-px">{showStageDropdown ? '▲' : '▼'}</span>
+                  </div>
+                </button>
 
-              {/* Название текущего этапа со стрелкой */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">
-                  {editForm.stage_name || deal?.stage_name}
-                </span>
-                <span className="text-xs text-slate-400">▼</span>
-              </div>
-            </div>
-
-            {/* Stage Dropdown - список всех этапов */}
-            {showStageDropdown && (
-            <div 
-              className="absolute top-full left-0 right-0 mt-2 bg-slate-700 rounded shadow-lg z-20 overflow-hidden transition-all duration-200 ease-out origin-top opacity-100 scale-y-100"
-            >
-                {stages.map((stage) => {
-                  const stageColors: Record<string, string> = {
-                    'Неразобранное': 'bg-yellow-400',
-                    'Первичный контакт': 'bg-blue-400',
-                    'Переговоры': 'bg-yellow-300',
-                    'Принимают решение': 'bg-orange-400',
-                    'Согласование договора': 'bg-pink-400',
-                    'Успешно реализовано': 'bg-green-400',
-                    'Закрыто и не реализовано': 'bg-gray-400'
-                  }
-                  const colorClass = stageColors[stage.name] || 'bg-slate-500'
-                  
-                  return (
-                    <button
-                      key={stage.id}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        changeStage(stage.id)
-                      }}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-600 transition-colors ${
-                        stage.id === deal?.stage_id ? 'bg-slate-600' : ''
-                      }`}
-                    >
-                      <div className={`w-full h-1.5 ${colorClass} rounded mb-2`} />
-                      <div className={stage.id === deal?.stage_id ? 'text-white' : 'text-slate-300'}>
-                        {stage.name}
-                      </div>
-                    </button>
-                  )
-                })}
-            </div>
+                {showStageDropdown && (
+                  <div
+                    id="stage-picker-menu"
+                    className="stage-picker-menu absolute top-full left-0 right-0 mt-2 bg-slate-700 rounded-lg shadow-2xl z-30 overflow-hidden"
+                    role="listbox"
+                  >
+                    {stages.map((stage) => {
+                      const isActiveStage = (editForm.stage_id || deal?.stage_id) === stage.id
+                      return (
+                        <button
+                          type="button"
+                          key={`stage-option-${stage.id}`}
+                          className={`stage-picker-option w-full text-left px-4 py-2.5 transition-all duration-150 ${
+                            isActiveStage 
+                              ? 'bg-slate-600 text-white' 
+                              : 'text-slate-300 hover:bg-slate-600/70'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            changeStage(stage.id)
+                          }}
+                          role="option"
+                          aria-selected={isActiveStage}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span 
+                              className="block w-12 h-1.5 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: stage.color || '#3b82f6' }} 
+                            />
+                            <span className="text-sm font-medium flex-1">{stage.name}</span>
+                            {isActiveStage && (
+                              <span className="text-xs text-blue-400">✓</span>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
-          )}
         </div>
 
         {/* Tabs */}
@@ -1613,7 +1586,7 @@ export default function DealModal({ dealId, onClose, activePipelineId }: DealMod
                         type="number"
                         value={editForm.value || ''}
                         onChange={(e) => updateEditForm('value', e.target.value)}
-                        className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-slate-500"
                         placeholder="0"
                       />
                     </div>

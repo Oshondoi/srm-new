@@ -13,7 +13,7 @@ import {
   useDroppable
 } from '@dnd-kit/core'
 
-type Stage = { id: string; name: string; position: number; deals_count?: number }
+type Stage = { id: string; name: string; position: number; deals_count?: number; color?: string }
 type Contact = { id: string; first_name: string; last_name: string; full_name?: string }
 type Deal = { 
   id: string
@@ -45,7 +45,7 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className="deal-card bg-slate-700 hover:bg-slate-600 rounded p-3 cursor-grab active:cursor-grabbing transition-colors"
+      className="deal-card bg-slate-700 hover:bg-slate-600 rounded p-[6px] cursor-grab active:cursor-grabbing transition-colors"
     >
       <div className="font-medium text-white mb-1">{deal.title}</div>
       {deal.responsible_user_name && (
@@ -53,21 +53,31 @@ function DraggableCard({ deal, onClick }: { deal: Deal; onClick?: () => void }) 
           🔑 {deal.responsible_user_name}
         </div>
       )}
-      {deal.company_name && (
-        <div className="text-xs text-slate-400 mb-0.5">
-          🏢 {deal.company_name}
+      
+      {/* Контакт и компания в одной строке */}
+      {(deal.contacts?.[0] || deal.company_name) && (
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
+          <span>👤</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {deal.contacts?.[0] && (
+              <span className="truncate">
+                {deal.contacts[0].full_name || `${deal.contacts[0].first_name} ${deal.contacts[0].last_name}`.trim()}
+              </span>
+            )}
+            {deal.company_name && (
+              <span className="truncate text-slate-500">
+                {deal.company_name}
+              </span>
+            )}
+          </div>
         </div>
       )}
-      {deal.contacts && deal.contacts.length > 0 && deal.contacts.map((contact, index) => (
-        <div key={contact.id || index} className="text-xs text-slate-400 mb-0.5">
-          👥 {contact.full_name || `${contact.first_name} ${contact.last_name}`.trim()}
-        </div>
-      ))}
+      
       <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-600">
         <div className="text-sm font-semibold text-blue-400">
           {deal.value > 0 ? `${deal.value.toLocaleString()} ₽` : '—'}
         </div>
-        <div className="text-xs text-slate-500">
+        <div className="text-xs font-medium text-slate-400">
           {deal.created_at ? new Date(deal.created_at).toLocaleString('ru-RU', { 
             day: '2-digit', 
             month: '2-digit', 
@@ -85,14 +95,21 @@ function DroppableColumn({ stage, deals, onDealClick }: { stage: Stage; deals: D
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
   return (
-    <div className="card flex-shrink-0" style={{ width: '310px' }}>
-      <div className="font-semibold mb-3 text-white flex justify-between">
-        <span>{stage.name}</span>
-        <span className="bg-slate-600 px-2 py-0.5 rounded text-xs">{deals.length}</span>
+    <div className="card flex-shrink-0" style={{ width: '316px', padding: 0 }}>
+      <div className="rounded p-[3px] mb-2" style={{ backgroundColor: stage.color || '#3b82f6' }}>
+        <div className="font-semibold text-white text-center mb-1">{stage.name}</div>
+        <div className="text-center">
+          <span className="text-xs text-white/80">
+            {deals.length} {deals.length === 1 ? 'сделка' : deals.length < 5 ? 'сделки' : 'сделок'}:
+          </span>
+          <span className="text-sm font-semibold text-white ml-1">
+            {deals.reduce((sum, d) => sum + (d.value || 0), 0).toLocaleString()} ₽
+          </span>
+        </div>
       </div>
       <div
         ref={setNodeRef}
-        className={`space-y-2 min-h-[200px] rounded p-2 transition-colors ${
+        className={`space-y-2 min-h-[200px] rounded transition-colors mx-2 mb-2 mt-0 ${
           isOver ? 'bg-slate-700/50' : 'bg-slate-800/30'
         }`}
       >
@@ -313,7 +330,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: { pipelineId: s
           onMouseLeave={handleMouseLeave}
           style={{ userSelect: isDraggingScroll ? 'none' : 'auto' }}
         >
-          <div className="flex gap-4 w-fit mx-auto">
+          <div className="flex gap-2 w-fit mx-auto">
             {stages.map((s, index) => (
               <DroppableColumn
                 key={s.id}

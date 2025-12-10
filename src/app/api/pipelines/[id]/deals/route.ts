@@ -36,6 +36,7 @@ export async function GET(
         s.name as stage_name,
         s.position as stage_position,
         s.is_visible as stage_is_visible,
+        s.color as stage_color,
         json_agg(
           json_build_object(
             'id', d.id,
@@ -70,6 +71,7 @@ export async function GET(
         name: row.stage_name,
         position: row.stage_position,
         is_visible: row.stage_is_visible,
+        color: row.stage_color || '#3b82f6',
         deals: (row.deals || []).map((d: any) => ({
           ...d,
           value: d.budget,

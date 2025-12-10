@@ -64,7 +64,8 @@ export async function GET(
               'id', st.id,
               'name', st.name,
               'position', st.position,
-              'is_visible', st.is_visible
+              'is_visible', st.is_visible,
+              'color', COALESCE(st.color, '#3b82f6')
             ) ORDER BY st.position
           ) FILTER (WHERE st.id IS NOT NULL),
           '[]'::json

@@ -20,6 +20,7 @@ export async function GET(request: Request) {
             'position', s.position,
             'pipeline_id', s.pipeline_id,
             'is_visible', COALESCE(s.is_visible, true),
+            'color', COALESCE(s.color, '#3b82f6'),
             'deals_count', COALESCE(deal_counts.count, 0)
           ) ORDER BY s.position
         ) FILTER (WHERE s.id IS NOT NULL) as stages
